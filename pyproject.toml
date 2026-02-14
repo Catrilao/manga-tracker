@@ -1,0 +1,12 @@
+[project]
+name = "manga-tracker"
+version = "1.0.0"
+description = "Automated tracker designed to nofity via discord notifications of new releases of Dai Dark"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "playwright>=1.58.0",
+    "psycopg2>=2.9.11",
+    "python-dotenv>=1.2.1",
+    "requests>=2.32.5",
+]

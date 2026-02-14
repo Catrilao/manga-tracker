@@ -38,3 +38,17 @@ jobs:
                   dbname: ${{ secrets.dbname }}
                   DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
               run: uv run main.py
+
+            - name: Notify on failure
+              if: failure()
+              env:
+                  DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+              run: |
+                  curl -H "Content-Type: application/json" \
+                      -d '{
+                          "embeds": [{
+                              "title": "💀 Critical Failure on Github Actions 💀",
+                              "description": "The workflow failed before completing the script. See logs on GitHub",
+                              "color": 16711680,
+                              }]
+                      }' $DISCORD_WEBHOOK

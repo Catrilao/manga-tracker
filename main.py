@@ -221,11 +221,42 @@ def send_notification(chapter: Chapter) -> bool:
         return False
 
 
+def send_error_notification(error_message: str):
+    webhook = os.getenv("DISCORD_WEBHOOK") or ""
+
+    embed = {
+        "title": "Health Check: Error in the Tracker",
+        "description": f"```python\n{error_message}\n```",
+        "color": 0xAC5F29,
+        "footer": {"text": "MangaDex Notifier - Error Log"},
+    }
+    payload = {"embeds": [embed]}
+
+    try:
+        response = requests.post(webhook, json=payload, timeout=10)
+        if response.status_code == 204:
+            return True
+        else:
+            print(f"Error Discord: {response.status_code} {response.text}")
+            return False
+    except requests.RequestException as e:
+        print(f"Connection error: {e}")
+        return False
+
+
 load_dotenv()
 
 
 if __name__ == "__main__":
     MANGA_URL = "https://mangadex.org/title/84703c86-eb83-45ec-8fc5-f34a25115893"
 
-    chapters = fetch_info_chapter(MANGA_URL)
-    store_chapter_data(chapters)
+    try:
+        chapters = fetch_info_chapter(MANGA_URL)
+        if not chapters:
+            raise Exception("No chapters found")
+
+        store_chapter_data(chapters)
+        print("Execution successful")
+    except Exception as e:
+        print(f"Error detected: {e}")
+        send_error_notification(str(e))

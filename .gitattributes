@@ -1,0 +1,17 @@
+* text=auto
+
+*.py text eol=lf
+*.js text eol=lf
+*.sh text eol=lf
+*.md  text eol=lf
+*.json text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
+
+# Ignore line ending conversions for binaries
+*.png  binary
+*.jpg  binary
+*.ico  binary
+*.zip  binary
+*.exe  binary

@@ -160,7 +160,7 @@ def execute_log_event(event: LogEvent) -> None:
     elif event.level == LogLevel.CRITICAL:
         log.critical(event.event_name, **log_kwargs)
     else:
-        log.warning("unknown_log_level", event.event_name, **log_kwargs)
+        log.warning("unknown_log_level", unknown_event_name=event.event_name, **log_kwargs)
 
 
 if __name__ == "__main__":

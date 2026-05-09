@@ -38,7 +38,7 @@ def fetch_info_chapter(manga_url: str) -> list[Chapter]:
 
         chapter_list = page.locator(".chapter.relative.read").all()
 
-        number = -1
+        number = -1.0
         name = "No name"
         link = manga_url
         language = "No language"
@@ -46,15 +46,11 @@ def fetch_info_chapter(manga_url: str) -> list[Chapter]:
         manga_id = uuid_match.group(1) if uuid_match else ""
 
         for chapter in chapter_list:
-            number = -1
-            chapter_info = (
-                chapter.locator(".line-clamp-1").first.text_content() or ""
-            ).strip()
+            number = -1.0
+            chapter_info = (chapter.locator(".line-clamp-1").first.text_content() or "").strip()
             name = chapter_info
 
-            card = chapter.locator(
-                "xpath=ancestor::div[contains(@class, 'bg-accent')][1]"
-            )
+            card = chapter.locator("xpath=ancestor::div[contains(@class, 'bg-accent')][1]")
             chapter_header = card.locator(
                 ".chapter-header .font-bold.self-center.whitespace-nowrap"
             )
@@ -152,7 +148,7 @@ def store_chapter_data(chapters_list: list[Chapter]) -> None:
         for chapter in chapters_list:
             cursor.execute(
                 """
-                INSERT INTO chapters 
+                INSERT INTO chapters
                 (manga_id, number, name, language, link)
                 VALUES(%s, %s, %s, %s, %s)
                 ON CONFLICT (manga_id, number, language) DO NOTHING
@@ -221,7 +217,7 @@ def send_notification(chapter: Chapter) -> bool:
         return False
 
 
-def send_error_notification(error_message: str):
+def send_error_notification(error_message: str) -> bool:
     webhook = os.getenv("DISCORD_WEBHOOK") or ""
 
     embed = {

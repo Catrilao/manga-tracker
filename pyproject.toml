@@ -1,7 +1,7 @@
 [project]
 name = "manga-tracker"
 version = "1.0.0"
-description = "Automated tracker designed to nofity via discord notifications of new releases of Dai Dark"
+description = "Automated tracker designed to nofity via discord notifications of new releases of tracked mangas"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -10,3 +10,30 @@ dependencies = [
     "python-dotenv>=1.2.1",
     "requests>=2.32.5",
 ]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.19.1",
+    "pre-commit>=4.5.1",
+    "ruff>=0.15.5",
+    "types-psycopg2>=2.9.21.20260223",
+    "types-requests>=2.32.4.20260107",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+exclude = ["__pycache__", "logs", "js", ".venv", ".github"]
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "F",
+    "I",
+    "UP"
+]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = "src"

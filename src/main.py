@@ -1,20 +1,14 @@
 import os
 import re
-from dataclasses import dataclass
+from decimal import Decimal
+from uuid import UUID
 
 import psycopg2
 import requests
 from dotenv import load_dotenv
 from playwright.sync_api import sync_playwright
 
-
-@dataclass
-class Chapter:
-    manga_id: str
-    number: float
-    name: str
-    link: str
-    language: str
+from src.domain.models import Chapter
 
 
 def fetch_info_chapter(manga_url: str) -> list[Chapter]:
@@ -38,15 +32,15 @@ def fetch_info_chapter(manga_url: str) -> list[Chapter]:
 
         chapter_list = page.locator(".chapter.relative.read").all()
 
-        number = -1.0
+        number = Decimal(-1.0)
         name = "No name"
         link = manga_url
         language = "No language"
         uuid_match = re.search(r"/title/([0-9a-fA-F-]{36})", manga_url)
-        manga_id = uuid_match.group(1) if uuid_match else ""
+        manga_id = UUID(uuid_match.group(1) if uuid_match else "")
 
         for chapter in chapter_list:
-            number = -1.0
+            number = Decimal("-1.0")
             chapter_info = (chapter.locator(".line-clamp-1").first.text_content() or "").strip()
             name = chapter_info
 
@@ -61,16 +55,16 @@ def fetch_info_chapter(manga_url: str) -> list[Chapter]:
                     chapter_header_text,
                 )
                 if num_match:
-                    number = float(num_match.group(1))
+                    number = Decimal(num_match.group(1))
 
-            if number == -1:
+            if number == Decimal(-1.0):
                 num_match = re.search(
                     r"(?:Ch\.?|chapter)\s*(\d+(?:\.\d+)?)",
                     chapter_info,
                     re.IGNORECASE,
                 )
                 if num_match:
-                    number = float(num_match.group(1))
+                    number = Decimal(num_match.group(1))
 
                 name_match = re.search(
                     r"(Ch\.|chapter)\s*\d+(?:\.\d+)?\s*(?:-\s*)?(.+)",
@@ -83,7 +77,6 @@ def fetch_info_chapter(manga_url: str) -> list[Chapter]:
             anchor_tag = chapter.locator("a[href*='/chapter/']").first
             link = anchor_tag.get_attribute("href") or ""
             language = anchor_tag.locator("img").first.get_attribute("title") or ""
-            number = int(number) if number.is_integer() else number
 
             all_chapters.append(
                 Chapter(

@@ -31,8 +31,8 @@ def configure_logging() -> None:
     """
     Call once at program startup, after load_dotenv().
     Sets up:
-      - structlog with JSON output to logs/scrape.log   (Layer 2: Artifact)
-      - structlog with colored console output to stdout (Layer 1: GH Actions live log)
+      - structlog with JSON output to logs/scrape.log (Layer 2: Artifact)
+      - structlog with console output to stdout       (Layer 1: GH Actions live log)
     """
     _ensure_log_dir()
 

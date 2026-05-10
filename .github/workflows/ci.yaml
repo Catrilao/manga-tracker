@@ -30,3 +30,6 @@ jobs:
 
             - name: Static Type Checking with Mypy
               run: uv run mypy src
+
+            - name: Run unit tests
+              run: uv run pytest

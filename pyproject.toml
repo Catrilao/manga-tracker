@@ -16,6 +16,7 @@ dependencies = [
 dev = [
     "mypy>=1.19.1",
     "pre-commit>=4.5.1",
+    "pytest>=9.0.3",
     "ruff>=0.15.5",
     "types-psycopg2>=2.9.21.20260223",
     "types-requests>=2.32.4.20260107",
@@ -38,3 +39,10 @@ select = [
 python_version = "3.12"
 strict = true
 files = "src"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+addopts = "-v"
+pythonpath = ["."]

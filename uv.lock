@@ -279,7 +279,7 @@ wheels = [
 [[package]]
 name = "manga-tracker"
 version = "1.0.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "playwright" },
     { name = "psycopg", extra = ["binary"] },

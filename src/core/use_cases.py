@@ -114,11 +114,37 @@ def calculate_sync_plan(
             and identifier not in already_seen
         ):
             chapters_to_insert.append(chapter)
-            chapters_to_notify.append(chapter)
             already_seen.add(identifier)
+
+            is_backfill = (
+                db_state.max_chapter_number is not None
+                and chapter.number < db_state.max_chapter_number - Decimal("5.0")
+            )
+
+            if not is_backfill:
+                chapters_to_notify.append(chapter)
 
     if db_state.is_cold_start:
         chapters_to_notify = []
+    else:
+        MAX_NOTIFICATIONS = 5
+        if len(chapters_to_notify) > MAX_NOTIFICATIONS:
+            manga_id = str(next(iter(db_state.existing_chapter_identifiers))[0]) or "Unknown"
+            warnings_to_log.append(
+                LogEvent(
+                    level=LogLevel.WARNING,
+                    event_name="notification_spam_prevented",
+                    context=MappingProxyType(
+                        {
+                            "manga_id": manga_id,
+                            "attempted_notifications": len(chapters_to_notify),
+                            "limit": MAX_NOTIFICATIONS,
+                        }
+                    ),
+                )
+            )
+            chapters_to_notify.sort(key=lambda c: c.number, reverse=True)
+            chapters_to_notify = chapters_to_notify[:MAX_NOTIFICATIONS]
 
     return SyncPlan(
         chapters_to_insert=tuple(chapters_to_insert),

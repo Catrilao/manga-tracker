@@ -1,7 +1,7 @@
 from typing import Protocol
 from uuid import UUID
 
-from src.domain.models import Chapter, DBMetadata, Manga, RawChapter, SyncPlan
+from src.domain.models import Chapter, DBMetadata, Manga, RawChapter, RunContext, SyncPlan
 
 
 class FetchMangaPort(Protocol):
@@ -61,3 +61,21 @@ class MarkNotifiedChaptersPort(Protocol):
     """
 
     def __call__(self, chapters: tuple[Chapter, ...]) -> None: ...
+
+
+class NotifierPort(Protocol):
+    """Protocol to send notifications"""
+
+    def send_notification(
+        self,
+        manga_name: str,
+        thumbnail: str,
+        chapter: Chapter,
+    ) -> bool: ...
+
+    def send_erro_notification(
+        self,
+        error_message: str,
+        color: int,
+        run_context: RunContext,
+    ) -> None: ...

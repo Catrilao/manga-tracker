@@ -57,7 +57,6 @@ package = true
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-# Add this section:
 [tool.hatch.build.targets.wheel]
 packages = ["src"]
 

@@ -94,7 +94,7 @@ class PostgresRepository:
         except Exception as e:
             raise DatabaseError(f"Failed to mark chapters as notified: {str(e)}")
 
-    def get_tracked_urls(self) -> tuple[str]:
+    def get_tracked_urls(self) -> tuple[str, ...]:
         """Retrieves the active manga URLs from the database"""
         with self.conn.cursor() as cursor:
             cursor.execute("SELECT url FROM mangas WHERE is_active")

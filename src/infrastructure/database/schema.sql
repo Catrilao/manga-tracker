@@ -1,12 +1,13 @@
-    CREATE TABLE mangas(
+    CREATE TABLE IF NOT EXISTS mangas(
         id UUID NOT NULL,
         name VARCHAR(100) NOT NULL CHECK (btrim(name) <> ''),
         thumbnail TEXT NOT NULL CHECK (btrim(thumbnail) <> ''),
         url TEXT NOT NULL CHECK (btrim(url) <> ''),
+        is_active BOOLEAN,
         PRIMARY KEY(id)
     );
 
-    CREATE TABLE chapters(
+    CREATE TABLE IF NOT EXISTS chapters(
         manga_id UUID NOT NULL,
         number NUMERIC NOT NULL CHECK (number >= 0),
         name VARCHAR(100) NOT NULL CHECK (btrim(name) <> ''),
@@ -18,13 +19,13 @@
         FOREIGN KEY (manga_id) REFERENCES mangas(id)
     );
 
-    CREATE TABLE tracked_mangas(
+    CREATE TABLE IF NOT EXISTS  tracked_mangas(
     url VARCHAR(255) PRIMARY KEY,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     added_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
 
-    CREATE TABLE scrape_runs(
+    CREATE TABLE IF NOT EXISTS  scrape_runs(
         id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 
         run_id           UUID NOT NULL,

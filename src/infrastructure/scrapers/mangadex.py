@@ -43,7 +43,7 @@ class MangadexScraper:
     def __init__(self, context: BrowserContext) -> None:
         self.context = context
 
-    def fetch_raw_data(self, target_url: str) -> tuple[Manga, tuple[RawChapter, ...]]:
+    def __call__(self, target_url: str) -> tuple[Manga, tuple[RawChapter, ...]]:
         raw_chapters_data: list[RawChapter] = []
 
         uuid_match = re.search(r"/title/([0-9a-fA-F-]{36})", target_url)

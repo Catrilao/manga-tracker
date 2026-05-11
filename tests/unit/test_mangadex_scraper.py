@@ -51,7 +51,7 @@ class TestMangadexScraper:
             ],  # Second evaluate (chapters)
         ]
 
-        manga, chapters = scraper.fetch_raw_data(self.VALID_URL)
+        manga, chapters = scraper(self.VALID_URL)
 
         assert manga.uuid == self.VALID_UUID
         assert manga.name == "Dai Dark"
@@ -67,7 +67,7 @@ class TestMangadexScraper:
             [],
         ]
 
-        manga, _ = scraper.fetch_raw_data(self.VALID_URL)
+        manga, _ = scraper(self.VALID_URL)
 
         expected_url = urljoin(self.VALID_URL, "/covers/daidark.jpg")
         assert manga.thumbnail == expected_url
@@ -75,28 +75,28 @@ class TestMangadexScraper:
     def test_invalid_url_raises_parse_error(self, scraper):
         """Should fail immediately without opening a browser if URL lacks a UUID."""
         with pytest.raises(ParseError, match="Could not extract Manga UUID"):
-            scraper.fetch_raw_data("https://mangadex.org/title/invalid-url-format")
+            scraper("https://mangadex.org/title/invalid-url-format")
 
     def test_page_load_timeout_raises_network_error(self, scraper, mock_page):
         """Should translate PlaywrightTimeoutError on initial load to NetworkError."""
         mock_page.wait_for_selector.side_effect = PlaywrightTimeoutError("Timeout")
 
         with pytest.raises(NetworkError, match="Page timeout loading"):
-            scraper.fetch_raw_data(self.VALID_URL)
+            scraper(self.VALID_URL)
 
     def test_playwright_error_raises_dom_change_error(self, scraper, mock_page):
         """Should translate generic Playwright navigation errors to DOMChangeError."""
         mock_page.goto.side_effect = PlaywrightError("Navigation failed")
 
         with pytest.raises(DOMChangeError, match="Playwright navigation failed"):
-            scraper.fetch_raw_data(self.VALID_URL)
+            scraper(self.VALID_URL)
 
     def test_missing_manga_data_raises_parse_error(self, scraper, mock_page):
         """Should raise ParseError if JS extraction returns empty strings for manga info."""
         mock_page.evaluate.return_value = {"name": "", "thumbnail": ""}
 
         with pytest.raises(ParseError, match="Could not get manga data"):
-            scraper.fetch_raw_data(self.VALID_URL)
+            scraper(self.VALID_URL)
 
     def test_chapter_load_timeout_returns_zero_chapters(self, scraper, mock_page):
         """
@@ -112,7 +112,7 @@ class TestMangadexScraper:
         # First wait succeeds (None), second wait raises the timeout
         mock_page.wait_for_selector.side_effect = [None, PlaywrightTimeoutError("Timeout")]
 
-        manga, chapters = scraper.fetch_raw_data(self.VALID_URL)
+        manga, chapters = scraper(self.VALID_URL)
 
         assert manga.name == "Dai Dark"
         assert len(chapters) == 0

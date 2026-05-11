@@ -17,17 +17,6 @@ class FetchMangaPort(Protocol):
     def __call__(self, target_url: str) -> tuple[Manga, tuple[RawChapter, ...]]: ...
 
 
-class GetDBMetadataPort(Protocol):
-    """
-    Port to retrieve the current state of a manga in the DB
-
-    Raises:
-        DatabaseError: If the connection fails or the query is invalid
-    """
-
-    def __call__(self, manga_id: UUID) -> DBMetadata: ...
-
-
 class ChapterParserPort(Protocol):
     """
     Protocol to transform raw scraped data into domain Chapters
@@ -43,24 +32,12 @@ class ChapterParserPort(Protocol):
     ) -> tuple[Chapter, ...]: ...
 
 
-class StoreChaptersPort(Protocol):
-    """Protocol to store new chapters in the DB
+class DatabasePort(Protocol):
+    """Unified contract for DB operations"""
 
-    Raises:
-        DatabaseError: If the connection fails or the query is invalid
-    """
-
-    def __call__(self, manga: Manga, plan: SyncPlan) -> None: ...
-
-
-class MarkNotifiedChaptersPort(Protocol):
-    """Protocol that mark which chapters were notified
-
-    Raises:
-        DatabaseError: If the connection fails or the query is invalid
-    """
-
-    def __call__(self, chapters: tuple[Chapter, ...]) -> None: ...
+    def get_metadata(self, manga_id: UUID) -> DBMetadata: ...
+    def store_chapters(self, manga: Manga, plan: SyncPlan) -> None: ...
+    def mark_as_notified(self, chapters: tuple[Chapter, ...]) -> None: ...
 
 
 class NotifierPort(Protocol):
@@ -73,7 +50,7 @@ class NotifierPort(Protocol):
         chapter: Chapter,
     ) -> bool: ...
 
-    def send_erro_notification(
+    def send_error_notification(
         self,
         error_message: str,
         color: int,

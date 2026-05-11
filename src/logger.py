@@ -144,7 +144,7 @@ def get_logger(name: str = __name__) -> structlog.stdlib.BoundLogger:
 
 
 def execute_log_event(event: LogEvent) -> None:
-    log = structlog.get_logger(event.event_name)
+    log = structlog.get_logger("src.core.use_cases")
 
     log_kwargs = dict(event.context)
     log_kwargs["occurred_at"] = event.occurred_at.isoformat()

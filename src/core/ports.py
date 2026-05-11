@@ -51,3 +51,13 @@ class StoreChaptersPort(Protocol):
     """
 
     def __call__(self, manga: Manga, plan: SyncPlan) -> None: ...
+
+
+class MarkNotifiedChaptersPort(Protocol):
+    """Protocol that mark which chapters were notified
+
+    Raises:
+        DatabaseError: If the connection fails or the query is invalid
+    """
+
+    def __call__(self, chapters: tuple[Chapter, ...]) -> None: ...

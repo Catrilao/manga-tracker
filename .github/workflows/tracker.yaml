@@ -48,7 +48,7 @@ jobs:
                       -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN")
 
                   # 2. Extraer el array usando jq (si es null, devuelve un array vacío)
-                  OLD_CIDRS=$(echo "$RESPONSE" | jq -c '.dbAllowedCidrs // []')
+                  OLD_CIDRS=$(echo "$RESPONSE" | jq -c '.config.dbAllowedCidrs // .dbAllowedCidrs // []')
 
                   # 3. Guardar la lista original en el entorno de GitHub para el paso final
                   echo "OLD_CIDRS=$OLD_CIDRS" >> $GITHUB_ENV
@@ -57,7 +57,7 @@ jobs:
                   NEW_CIDRS=$(echo "$OLD_CIDRS" | jq -c ". + [\"$RUNNER_IP\"] | unique")
 
                   # 5. Enviar la lista actualizada a Supabase
-                  curl -s --fail-with-body -X PUT "https://api.supabase.com/v1/projects/$PROJECT_ID/network-restrictions" \
+                  curl -s --fail-with-body -X POST "https://api.supabase.com/v1/projects/$PROJECT_ID/network-restrictions" \
                       -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
                       -H "Content-Type: application/json" \
                       -d "{\"dbAllowedCidrs\": $NEW_CIDRS}"
@@ -83,11 +83,11 @@ jobs:
                   # Verificación de seguridad: si OLD_CIDRS está vacío, el paso inicial falló.
                   # Abortamos la restauración para no borrar la configuración accidentalmente.
                   if [ -z "$OLD_CIDRS" ]; then
-                    echo "No original CIDRs found in environment. Skipping restore."
+                    echo "No original CIDRs found in environment. Skipping restore to prevent data loss."
                     exit 0
                   fi
 
-                  curl -s --fail-with-body -X PUT "https://api.supabase.com/v1/projects/$PROJECT_ID/network-restrictions" \
+                  curl -s --fail-with-body -X POST "https://api.supabase.com/v1/projects/$PROJECT_ID/network-restrictions" \
                     -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
                     -H "Content-Type: application/json" \
                     -d "{\"dbAllowedCidrs\": $OLD_CIDRS}"

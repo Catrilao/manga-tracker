@@ -5,9 +5,14 @@ on:
         - cron: "36 18 */5 * *"
     workflow_dispatch:
 
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
 jobs:
     check-manga:
         runs-on: ubuntu-latest
+        timeout-minutes: 5
         permissions:
             contents: read
 
@@ -29,26 +34,58 @@ jobs:
             - name: Install Playwright Chromium
               run: uv run playwright install chromium --with-deps
 
+            - name: Get GitHub Runner IP
+              id: ip
+              uses: haythem/public-ip@v1.3
+
+            - name: Whitelist IP in Supabase
+              env:
+                  SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+                  PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+              run: |
+                  curl -X PUT "https://api.supabase.com/v1/projects/$PROJECT_ID/network-restrictions" \
+                  -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+                  -H "Content-Type: application/json" \
+                  -d '{
+                    "dbAllowedCidrs": ["${{ steps.ip.outputs.ipv4 }}/32"]
+                  }'
+
             - name: Run tracker
               env:
-                  user: ${{ secrets.user }}
-                  password: ${{ secrets.password }}
-                  host: ${{ secrets.host }}
-                  port: ${{ secrets.port }}
-                  dbname: ${{ secrets.dbname }}
+                  DB_USER: ${{ secrets.DB_USER }}
+                  DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+                  DB_HOST: ${{ secrets.DB_HOST }}
+                  DB_PORT: ${{ secrets.DB_PORT }}
+                  DB_NAME: ${{ secrets.DB_NAME }}
                   DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-              run: uv run main.py
+                  GITHUB_RUN_ID: ${{ github.run_id }}
+                  GIT_COMMIT: ${{ github.sha }}
+              run: uv run manga-tracker
+
+            - name: Revoke IP from Supabase (Lock the Door)
+              if: always() # This ensures it runs even if the tracker script crashes!
+              env:
+                  SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+                  PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+              run: |
+                  curl -X PUT "https://api.supabase.com/v1/projects/$PROJECT_ID/network-restrictions" \
+                  -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+                  -H "Content-Type: application/json" \
+                  -d '{
+                    "dbAllowedCidrs": []
+                  }'
 
             - name: Notify on failure
               if: failure()
               env:
                   DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+                  RUN_URL: "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
               run: |
                   curl -H "Content-Type: application/json" \
-                      -d '{
-                          "embeds": [{
-                              "title": "💀 Critical Failure on Github Actions 💀",
-                              "description": "The workflow failed before completing the script. See logs on GitHub",
-                              "color": 16711680,
-                              }]
-                      }' "$DISCORD_WEBHOOK"
+                       -d '{
+                           "embeds": [{
+                               "title": "💀 Critical Failure on Github Actions 💀",
+                               "description": "The workflow failed before completing the script.\n\n[Logs]('"$RUN_URL"')",
+                               "color": 16711680
+                           }]
+                       }' "$DISCORD_WEBHOOK"

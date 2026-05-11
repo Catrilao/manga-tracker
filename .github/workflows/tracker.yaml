@@ -46,7 +46,7 @@ jobs:
                   curl -s --fail-with-body -X PATCH "https://api.supabase.com/v1/projects/$PROJECT_ID/network-restrictions" \
                       -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
                       -H "Content-Type: application/json" \
-                      -d "{\"add\": [\"$RUNNER_IP\"]}"
+                      -d "{\"add\": {\"dbAllowedCidrs\": [\"$RUNNER_IP\"]}}"
 
             - name: Run tracker
               env:
@@ -69,7 +69,7 @@ jobs:
                   curl -s --fail-with-body -X PATCH "https://api.supabase.com/v1/projects/$PROJECT_ID/network-restrictions" \
                     -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
                     -H "Content-Type: application/json" \
-                    -d "{\"remove\": [\"$RUNNER_IP\"]}"
+                    -d "{\"remove\": {\"dbAllowedCidrs\": [\"$RUNNER_IP\"]}}"
 
             - name: Notify on failure
               if: failure()

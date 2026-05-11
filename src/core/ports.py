@@ -1,7 +1,7 @@
 from typing import Protocol
 from uuid import UUID
 
-from src.domain.models import Chapter, DBMetadata, Manga, RawChapter
+from src.domain.models import Chapter, DBMetadata, Manga, RawChapter, SyncPlan
 
 
 class FetchMangaPort(Protocol):
@@ -41,3 +41,13 @@ class ChapterParserPort(Protocol):
         manga_id: UUID,
         raw_chapters: tuple[RawChapter, ...],
     ) -> tuple[Chapter, ...]: ...
+
+
+class StoreChaptersPort(Protocol):
+    """Protocol to store new chapters in the DB
+
+    Raises:
+        DatabaseError: If the connection fails or the query is invalid
+    """
+
+    def __call__(self, manga: Manga, plan: SyncPlan) -> None: ...

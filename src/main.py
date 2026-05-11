@@ -1,251 +1,158 @@
-import os
-import re
-from decimal import Decimal
-from uuid import UUID
+import sys
+from contextlib import closing
 
-import psycopg2
-import requests
-from dotenv import load_dotenv
+import psycopg
 from playwright.sync_api import sync_playwright
 
-from src.domain.models import Chapter
+from src.config import load_config
+from src.core.use_cases import calculate_sync_plan
+from src.domain.models import ConfigurationError, RunContext, TrackerBaseException
+from src.infrastructure.database.postgres import PostgresRepository
+from src.infrastructure.notifications.discord import DiscordNotifier
+from src.infrastructure.scrapers.mangadex import MangadexScraper
+from src.infrastructure.scrapers.parser import MangadexChapterParser
+from src.logger import (
+    bind_run_context,
+    configure_logging,
+    execute_log_event,
+    get_logger,
+    manga_log_context,
+)
+
+log = get_logger(__name__)
 
 
-def fetch_info_chapter(manga_url: str) -> list[Chapter]:
-    all_chapters = []
-    with sync_playwright() as p:
+def process_manga_url(
+    url: str,
+    db_repo: PostgresRepository,
+    scraper: MangadexScraper,
+    parser: MangadexChapterParser,
+    notifier: DiscordNotifier,
+    run_context: RunContext,
+) -> bool:
+    """
+    Coordinates the side-effects and passes the result
+    into the functional core
+    """
+
+    try:
+        manga, raw_chapters = scraper(url)
+
+        with manga_log_context(manga.uuid, manga.name, manga.url):
+            parsed_chapters = parser(manga.uuid, raw_chapters)
+
+            db_metadata = db_repo.get_metadata(manga.uuid)
+
+            plan = calculate_sync_plan(parsed_chapters, db_metadata)
+
+            for event in plan.log_events:
+                execute_log_event(event)
+
+            db_repo.store_chapters(manga, plan)
+
+            notified_chapters = []
+            for chapter in plan.chapters_to_notify:
+                success = notifier.send_notification(manga.name, manga.thumbnail, chapter)
+                if success:
+                    notified_chapters.append(chapter)
+
+            if notified_chapters:
+                db_repo.mark_as_notified(tuple(notified_chapters))
+
+            log.info("manga_sync_completed", new_chapters=len(plan.chapters_to_insert))
+            return True
+    except TrackerBaseException as e:
+        log.error("manga_sync_failed", error=str(e), error_class=type(e).__name__)
+        notifier.send_error_notification(str(e), e.color_code, run_context)
+        return False
+    except Exception as e:
+        log.critical("manga_sync_crashed", error=str(e), error_class=type(e).__name__)
+        notifier.send_error_notification(f"Critical crash: {str(e)}", 0xC0392B, run_context)
+        return False
+
+
+def main() -> None:
+    configure_logging()
+    run_context = bind_run_context()
+    log.info("tracker_booting")
+
+    try:
+        config = load_config()
+    except ConfigurationError as e:
+        # GitHub actions would send the notification
+        # to Discord with curl if load_config fails
+        log.critical("configuration_failed", error=str(e))
+        sys.exit(1)
+
+    notifier = DiscordNotifier(config.discord_webhook_url)
+    parser = MangadexChapterParser()
+
+    try:
+        conn_string = (
+            f"host={config.db_host} port={config.db_port} "
+            f"dbname={config.db_name} user={config.db_user} "
+            f"password={config.db_password}"
+        )
+        raw_connection = psycopg.connect(conn_string)
+        raw_connection.autocommit = True
+    except Exception as e:
+        log.critical("database_connection_failed", error=str(e))
+        notifier.send_error_notification("Fatal: could not connect to DB", 0xC0392B, run_context)
+        sys.exit(1)
+
+    mangas_attempted = 0
+    mangas_succeeded = 0
+
+    with closing(raw_connection) as db_connection, sync_playwright() as p:
+        db_repo = PostgresRepository(db_connection)
+
+        target_urls = db_repo.get_tracked_urls()
+        if not target_urls:
+            log.warning("no_urls_found_in_database")
+            sys.exit(0)
+
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
             "AppleWebKit/537.36 (KHTML, like Gecko) "
             "Chrome/118.0.5993.117 Safari/537.36",
             viewport={"width": 1920, "height": 1080},
-            locale="es-ES",
+            locale="en-US",
             color_scheme="light",
         )
-        page = context.new_page()
 
-        page.route("**/*.{png,jpg,jpeg,svg,css,woff,fnt}", lambda route: route.abort())
+        scraper = MangadexScraper(context)
 
-        page.goto(manga_url)
-        page.wait_for_selector(".line-clamp-1")
-
-        chapter_list = page.locator(".chapter.relative.read").all()
-
-        number = Decimal(-1.0)
-        name = "No name"
-        link = manga_url
-        language = "No language"
-        uuid_match = re.search(r"/title/([0-9a-fA-F-]{36})", manga_url)
-        manga_id = UUID(uuid_match.group(1) if uuid_match else "")
-
-        for chapter in chapter_list:
-            number = Decimal("-1.0")
-            chapter_info = (chapter.locator(".line-clamp-1").first.text_content() or "").strip()
-            name = chapter_info
-
-            card = chapter.locator("xpath=ancestor::div[contains(@class, 'bg-accent')][1]")
-            chapter_header = card.locator(
-                ".chapter-header .font-bold.self-center.whitespace-nowrap"
+        for url in target_urls:
+            mangas_attempted += 1
+            is_success = process_manga_url(
+                url,
+                db_repo,
+                scraper,
+                parser,
+                notifier,
+                run_context,
             )
-            if chapter_header.count() > 0:
-                chapter_header_text = chapter_header.first.text_content() or ""
-                num_match = re.search(
-                    r"(\d+(?:\.\d+)?)",
-                    chapter_header_text,
-                )
-                if num_match:
-                    number = Decimal(num_match.group(1))
-
-            if number == Decimal(-1.0):
-                num_match = re.search(
-                    r"(?:Ch\.?|chapter)\s*(\d+(?:\.\d+)?)",
-                    chapter_info,
-                    re.IGNORECASE,
-                )
-                if num_match:
-                    number = Decimal(num_match.group(1))
-
-                name_match = re.search(
-                    r"(Ch\.|chapter)\s*\d+(?:\.\d+)?\s*(?:-\s*)?(.+)",
-                    chapter_info,
-                    re.IGNORECASE,
-                )
-                if name_match:
-                    name = name_match.group(2).strip()
-
-            anchor_tag = chapter.locator("a[href*='/chapter/']").first
-            link = anchor_tag.get_attribute("href") or ""
-            language = anchor_tag.locator("img").first.get_attribute("title") or ""
-
-            all_chapters.append(
-                Chapter(
-                    manga_id,
-                    number,
-                    name,
-                    link,
-                    language,
-                )
-            )
-            print(f"{manga_id=}")
-            print(f"{number=}")
-            print(f"{name=}")
-            print(f"{link=}")
-            print(f"{language=}")
+            if is_success:
+                mangas_succeeded += 1
 
         context.close()
         browser.close()
 
-    return all_chapters
-
-
-def store_chapter_data(chapters_list: list[Chapter]) -> None:
-    USER = os.getenv("user")
-    PASSWORD = os.getenv("password")
-    HOST = os.getenv("host")
-    PORT = os.getenv("port")
-    DATABASE = os.getenv("dbname")
-
-    connection = None
-    cursor = None
-    try:
-        connection = psycopg2.connect(
-            user=USER,
-            password=PASSWORD,
-            host=HOST,
-            port=PORT,
-            database=DATABASE,
+    if mangas_succeeded == 0 and mangas_attempted > 0:
+        log.critical("run_failed_completely", attempted=mangas_attempted)
+        sys.exit(1)
+    elif mangas_succeeded < mangas_attempted:
+        log.warning(
+            "run_completed_with_failures",
+            attempted=mangas_attempted,
+            succeeded=mangas_succeeded,
         )
-        connection.autocommit = True
-        cursor = connection.cursor()
-
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS chapters(
-                manga_id TEXT,
-                number NUMERIC,
-                name VARCHAR(100),
-                language VARCHAR(30),
-                link TEXT,
-                notified BOOLEAN DEFAULT FALSE,
-                insert_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY(manga_id, number, language)
-            );
-            """
-        )
-
-        cursor.execute("SELECT COUNT(*) FROM chapters;")
-        result = cursor.fetchone()
-        is_cold_start = (result[0] == 0) if result else True
-
-        for chapter in chapters_list:
-            cursor.execute(
-                """
-                INSERT INTO chapters
-                (manga_id, number, name, language, link)
-                VALUES(%s, %s, %s, %s, %s)
-                ON CONFLICT (manga_id, number, language) DO NOTHING
-                RETURNING 1;
-                """,
-                (
-                    chapter.manga_id,
-                    chapter.number,
-                    chapter.name,
-                    chapter.language,
-                    chapter.link,
-                ),
-            )
-            inserted = cursor.fetchone() is not None
-
-            if inserted and not is_cold_start:
-                success = send_notification(chapter)
-                if success:
-                    cursor.execute(
-                        """
-                        UPDATE chapters
-                        SET notified = TRUE
-                        WHERE manga_id = %s AND number = %s AND language = %s
-                        """,
-                        (chapter.manga_id, chapter.number, chapter.language),
-                    )
-
-        connection.commit()
-    except Exception as e:
-        if connection:
-            connection.rollback()
-        print(f"Error: {e}")
-    finally:
-        if cursor:
-            cursor.close()
-        if connection:
-            connection.close()
-
-
-def send_notification(chapter: Chapter) -> bool:
-    webhook = os.getenv("DISCORD_WEBHOOK") or ""
-
-    embed = {
-        "title": f" Dai Dark - Chapter {chapter.number} - {chapter.name}",
-        "url": f"https://mangadex.org{chapter.link}",
-        "color": 0xAC5F29,
-        "fields": [
-            {"name": "Language", "value": chapter.language, "inline": True},
-        ],
-        "footer": {"text": "MangaDex Notifier"},
-        "thumbnail": {
-            "url": "https://mangadex.org/covers/84703c86-eb83-45ec-8fc5-f34a25115893/e3a1e78b-7147-45f3-9c7f-ee398fa9c437.jpg"
-        },
-    }
-    payload = {"embeds": [embed]}
-
-    try:
-        response = requests.post(webhook, json=payload, timeout=10)
-        if response.status_code == 204:
-            return True
-        else:
-            print(f"Error Discord: {response.status_code} {response.text}")
-            return False
-    except requests.RequestException as e:
-        print(f"Connection error: {e}")
-        return False
-
-
-def send_error_notification(error_message: str) -> bool:
-    webhook = os.getenv("DISCORD_WEBHOOK") or ""
-
-    embed = {
-        "title": "Health Check: Error in the Tracker",
-        "description": f"```python\n{error_message}\n```",
-        "color": 0xAC5F29,
-        "footer": {"text": "MangaDex Notifier - Error Log"},
-    }
-    payload = {"embeds": [embed]}
-
-    try:
-        response = requests.post(webhook, json=payload, timeout=10)
-        if response.status_code == 204:
-            return True
-        else:
-            print(f"Error Discord: {response.status_code} {response.text}")
-            return False
-    except requests.RequestException as e:
-        print(f"Connection error: {e}")
-        return False
-
-
-load_dotenv()
+        sys.exit(1)
+    else:
+        log.info("run_completed_successfully", attempted=mangas_attempted)
+        sys.exit(0)
 
 
 if __name__ == "__main__":
-    MANGA_URL = "https://mangadex.org/title/84703c86-eb83-45ec-8fc5-f34a25115893"
-
-    try:
-        chapters = fetch_info_chapter(MANGA_URL)
-        if not chapters:
-            raise Exception("No chapters found")
-
-        store_chapter_data(chapters)
-        print("Execution successful")
-    except Exception as e:
-        print(f"Error detected: {e}")
-        send_error_notification(str(e))
+    main()

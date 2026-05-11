@@ -46,3 +46,20 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 addopts = "-v"
 pythonpath = ["."]
+
+[project.scripts]
+manga-tracker = "src.main:main"
+
+[tool.uv]
+package = true
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# Add this section:
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[tool.hatch.build.targets.wheel.shared-data]
+"src/infrastructure/scrapers/js" = "src/infrastructure/scrapers/js"

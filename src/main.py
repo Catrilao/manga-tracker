@@ -88,12 +88,7 @@ def main() -> None:
     parser = MangadexChapterParser()
 
     try:
-        conn_string = (
-            f"host={config.db_host} port={config.db_port} "
-            f"dbname={config.db_name} user={config.db_user} "
-            f"password={config.db_password}"
-        )
-        raw_connection = psycopg.connect(conn_string)
+        raw_connection = psycopg.connect(config.DATABASE_URL)
         raw_connection.autocommit = True
     except Exception as e:
         log.critical("database_connection_failed", error=str(e))

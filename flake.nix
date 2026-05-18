@@ -31,6 +31,7 @@
           ];
 
           LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath (with pkgs; [
+            stdenv.cc.cc.lib
             glib nss nspr dbus atk cups libdrm libxkbcommon pango cairo alsa-lib
           ]);
 

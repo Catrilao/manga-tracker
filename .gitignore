@@ -13,3 +13,6 @@ wheels/
 *.db
 logs/
 *.log
+
+.envrc
+.direnv/

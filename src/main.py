@@ -4,7 +4,6 @@ from contextlib import closing
 import psycopg
 from playwright.sync_api import sync_playwright
 
-from src.config import load_config
 from src.core.use_cases import calculate_sync_plan
 from src.domain.models import ConfigurationError, RunContext, TrackerBaseException
 from src.infrastructure.database.postgres import PostgresRepository
@@ -77,7 +76,7 @@ def main() -> None:
     log.info("tracker_booting")
 
     try:
-        config = load_config()
+        from src.config import config
     except ConfigurationError as e:
         # GitHub actions would send the notification
         # to Discord with curl if load_config fails
@@ -106,7 +105,7 @@ def main() -> None:
             log.warning("no_urls_found_in_database")
             sys.exit(0)
 
-        browser = p.chromium.launch(headless=True)
+        browser = p.chromium.launch(headless=True, executable_path=config.chromium_executable_path)
         context = browser.new_context(
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
             "AppleWebKit/537.36 (KHTML, like Gecko) "

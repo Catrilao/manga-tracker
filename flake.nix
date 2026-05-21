@@ -17,6 +17,7 @@
             python312
             uv
             postgresql
+            chromium
             glib
             nss
             nspr
@@ -36,6 +37,8 @@
           ]);
 
           shellHook = ''
+            export CHROMIUM_EXECUTABLE_PATH="${pkgs.chromium}/bin/chromium"
+
             echo "Manga Tracker Architecture Loaded"
             echo "Environment: Python $(python3 --version | awk '{print $2}') | $(uv --version)"
 

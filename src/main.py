@@ -4,8 +4,8 @@ from contextlib import closing
 import psycopg
 from playwright.sync_api import sync_playwright
 
-from src.core.use_cases import calculate_sync_plan
-from src.domain.models import ConfigurationError, RunContext, TrackerBaseException
+from src.core.services import MangaSyncService
+from src.domain.models import ConfigurationError
 from src.infrastructure.database.postgres import PostgresRepository
 from src.infrastructure.notifications.discord import DiscordNotifier
 from src.infrastructure.scrapers.mangadex import MangadexScraper
@@ -13,61 +13,10 @@ from src.infrastructure.scrapers.parser import MangadexChapterParser
 from src.logger import (
     bind_run_context,
     configure_logging,
-    execute_log_event,
     get_logger,
-    manga_log_context,
 )
 
 log = get_logger(__name__)
-
-
-def process_manga_url(
-    url: str,
-    db_repo: PostgresRepository,
-    scraper: MangadexScraper,
-    parser: MangadexChapterParser,
-    notifier: DiscordNotifier,
-    run_context: RunContext,
-) -> bool:
-    """
-    Coordinates the side-effects and passes the result
-    into the functional core
-    """
-
-    try:
-        manga, raw_chapters = scraper(url)
-
-        with manga_log_context(manga.uuid, manga.name, manga.url):
-            parsed_chapters = parser(manga.uuid, raw_chapters)
-
-            db_metadata = db_repo.get_metadata(manga.uuid)
-
-            plan = calculate_sync_plan(parsed_chapters, db_metadata)
-
-            for event in plan.log_events:
-                execute_log_event(event)
-
-            db_repo.store_chapters(manga, plan)
-
-            notified_chapters = []
-            for chapter in plan.chapters_to_notify:
-                success = notifier.send_notification(manga.name, manga.thumbnail, chapter)
-                if success:
-                    notified_chapters.append(chapter)
-
-            if notified_chapters:
-                db_repo.mark_as_notified(tuple(notified_chapters))
-
-            log.info("manga_sync_completed", new_chapters=len(plan.chapters_to_insert))
-            return True
-    except TrackerBaseException as e:
-        log.error("manga_sync_failed", error=str(e), error_class=type(e).__name__)
-        notifier.send_error_notification(str(e), e.color_code, run_context)
-        return False
-    except Exception as e:
-        log.critical("manga_sync_crashed", error=str(e), error_class=type(e).__name__)
-        notifier.send_error_notification(f"Critical crash: {str(e)}", 0xC0392B, run_context)
-        return False
 
 
 def main() -> None:
@@ -84,7 +33,6 @@ def main() -> None:
         sys.exit(1)
 
     notifier = DiscordNotifier(config.discord_webhook_url)
-    parser = MangadexChapterParser()
 
     try:
         raw_connection = psycopg.connect(config.database_url)
@@ -98,13 +46,6 @@ def main() -> None:
     mangas_succeeded = 0
 
     with closing(raw_connection) as db_connection, sync_playwright() as p:
-        db_repo = PostgresRepository(db_connection)
-
-        target_urls = db_repo.get_tracked_urls()
-        if not target_urls:
-            log.warning("no_urls_found_in_database")
-            sys.exit(0)
-
         browser = p.chromium.launch(headless=True, executable_path=config.chromium_executable_path)
         context = browser.new_context(
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -115,16 +56,26 @@ def main() -> None:
             color_scheme="light",
         )
 
+        db_repo = PostgresRepository(db_connection)
         scraper = MangadexScraper(context)
+        parser = MangadexChapterParser()
+
+        sync_service = MangaSyncService(
+            db_repo=db_repo,
+            scraper=scraper,
+            parser=parser,
+            notifier=notifier,
+        )
+
+        target_urls = db_repo.get_tracked_urls()
+        if not target_urls:
+            log.warning("no_urls_found_in_database")
+            sys.exit(0)
 
         for url in target_urls:
             mangas_attempted += 1
-            is_success = process_manga_url(
+            is_success = sync_service.execute(
                 url,
-                db_repo,
-                scraper,
-                parser,
-                notifier,
                 run_context,
             )
             if is_success:

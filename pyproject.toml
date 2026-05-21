@@ -62,3 +62,9 @@ packages = ["src"]
 
 [tool.hatch.build.targets.wheel.shared-data]
 "src/infrastructure/scrapers/js" = "src/infrastructure/scrapers/js"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"

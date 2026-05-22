@@ -1,13 +1,11 @@
 import sys
-from contextlib import closing
-
-import psycopg
-from playwright.sync_api import sync_playwright
 
 from src.core.services import MangaSyncService
 from src.domain.models import ConfigurationError
+from src.infrastructure.database.connection import get_db_connection
 from src.infrastructure.database.postgres import PostgresRepository
 from src.infrastructure.notifications.discord import DiscordNotifier
+from src.infrastructure.scrapers.browser import get_browser_context
 from src.infrastructure.scrapers.mangadex import MangadexScraper
 from src.infrastructure.scrapers.parser import MangadexChapterParser
 from src.logger import (
@@ -34,30 +32,15 @@ def main() -> None:
 
     notifier = DiscordNotifier(config.discord_webhook_url)
 
-    try:
-        raw_connection = psycopg.connect(config.database_url)
-        raw_connection.autocommit = True
-    except Exception as e:
-        log.critical("database_connection_failed", error=str(e))
-        notifier.send_error_notification("Fatal: could not connect to DB", 0xC0392B, run_context)
-        sys.exit(1)
-
     mangas_attempted = 0
     mangas_succeeded = 0
 
-    with closing(raw_connection) as db_connection, sync_playwright() as p:
-        browser = p.chromium.launch(headless=True, executable_path=config.chromium_executable_path)
-        context = browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/118.0.5993.117 Safari/537.36",
-            viewport={"width": 1920, "height": 1080},
-            locale="en-US",
-            color_scheme="light",
-        )
-
+    with (
+        get_db_connection(config.database_url) as db_connection,
+        get_browser_context(config.chromium_executable_path) as browser_context,
+    ):
         db_repo = PostgresRepository(db_connection)
-        scraper = MangadexScraper(context)
+        scraper = MangadexScraper(browser_context)
         parser = MangadexChapterParser()
 
         sync_service = MangaSyncService(
@@ -80,9 +63,6 @@ def main() -> None:
             )
             if is_success:
                 mangas_succeeded += 1
-
-        context.close()
-        browser.close()
 
     if mangas_succeeded == 0 and mangas_attempted > 0:
         log.critical("run_failed_completely", attempted=mangas_attempted)

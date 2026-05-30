@@ -49,6 +49,8 @@ jobs:
                       -H "Content-Type: application/json" \
                       -d "{\"add\": {\"dbAllowedCidrs\": [\"$RUNNER_IP\"]}}"
 
+                  sleep 20
+
             - name: Run tracker
               env:
                   DATABASE_URL: ${{ secrets.DATABASE_URL }}

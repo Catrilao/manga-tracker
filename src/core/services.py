@@ -42,7 +42,8 @@ class MangaSyncService:
                 for event in plan.log_events:
                     execute_log_event(event)
 
-                self.db_repo.store_chapters(manga, plan)
+                if plan.chapters_to_insert:
+                    self.db_repo.store_chapters(manga, plan)
 
                 notified_chapters = []
                 for chapter in plan.chapters_to_notify:

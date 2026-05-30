@@ -1,11 +1,8 @@
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
 CREATE TABLE IF NOT EXISTS mangas(
-    id UUID NOT NULL DEFAULT gen_random_uuid(),
+    id UUID NOT NULL,
     name VARCHAR(100) NOT NULL CHECK (btrim(name) <> ''),
     thumbnail TEXT NOT NULL CHECK (btrim(thumbnail) <> ''),
     url TEXT NOT NULL CHECK (btrim(url) <> ''),
-    is_active BOOLEAN DEFAULT TRUE,
     PRIMARY KEY(id)
 );
 

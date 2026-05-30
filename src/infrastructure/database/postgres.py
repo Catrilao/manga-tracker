@@ -97,5 +97,5 @@ class PostgresRepository:
     def get_tracked_urls(self) -> tuple[str, ...]:
         """Retrieves the active manga URLs from the database"""
         with self.conn.cursor() as cursor:
-            cursor.execute("SELECT url FROM mangas WHERE is_active")
+            cursor.execute("SELECT url FROM tracked_mangas WHERE is_active")
             return tuple(row[0] for row in cursor.fetchall())

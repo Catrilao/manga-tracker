@@ -4,6 +4,10 @@ from uuid import UUID
 from src.domain.models import Chapter, DBMetadata, Manga, RawChapter, RunContext, SyncPlan
 
 
+class SyncServicePort(Protocol):
+    def execute(self, url: str, run_context: RunContext) -> bool: ...
+
+
 class FetchMangaPort(Protocol):
     """
     Port to retrieve the raw data from the manga and its chapters

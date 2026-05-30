@@ -1,5 +1,6 @@
 import sys
 
+from src.core.controllers import MangaBatchController
 from src.core.services import MangaSyncService
 from src.domain.models import ConfigurationError
 from src.infrastructure.database.connection import get_db_connection
@@ -32,51 +33,31 @@ def main() -> None:
 
     notifier = DiscordNotifier(config.discord_webhook_url)
 
-    mangas_attempted = 0
-    mangas_succeeded = 0
+    try:
+        with (
+            get_db_connection(config.database_url) as db_connection,
+            get_browser_context(config.chromium_executable_path) as browser_context,
+        ):
+            db_repo = PostgresRepository(db_connection)
+            scraper = MangadexScraper(browser_context)
+            parser = MangadexChapterParser()
 
-    with (
-        get_db_connection(config.database_url) as db_connection,
-        get_browser_context(config.chromium_executable_path) as browser_context,
-    ):
-        db_repo = PostgresRepository(db_connection)
-        scraper = MangadexScraper(browser_context)
-        parser = MangadexChapterParser()
-
-        sync_service = MangaSyncService(
-            db_repo=db_repo,
-            scraper=scraper,
-            parser=parser,
-            notifier=notifier,
-        )
-
-        target_urls = db_repo.get_tracked_urls()
-        if not target_urls:
-            log.warning("no_urls_found_in_database")
-            sys.exit(0)
-
-        for url in target_urls:
-            mangas_attempted += 1
-            is_success = sync_service.execute(
-                url,
-                run_context,
+            sync_service = MangaSyncService(
+                db_repo=db_repo,
+                scraper=scraper,
+                parser=parser,
+                notifier=notifier,
             )
-            if is_success:
-                mangas_succeeded += 1
 
-    if mangas_succeeded == 0 and mangas_attempted > 0:
-        log.critical("run_failed_completely", attempted=mangas_attempted)
+            controller = MangaBatchController(db_repo, sync_service)
+            exit_code = controller.run_all(run_context)
+
+    except Exception as e:
+        log.critical("infrastructure_initialization_failed", error=str(e))
+        notifier.send_error_notification("Fatal: infrastructure failure", 0xC0392B, run_context)
         sys.exit(1)
-    elif mangas_succeeded < mangas_attempted:
-        log.warning(
-            "run_completed_with_failures",
-            attempted=mangas_attempted,
-            succeeded=mangas_succeeded,
-        )
-        sys.exit(1)
-    else:
-        log.info("run_completed_successfully", attempted=mangas_attempted)
-        sys.exit(0)
+
+    sys.exit(exit_code)
 
 
 if __name__ == "__main__":

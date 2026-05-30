@@ -4,6 +4,7 @@ from types import MappingProxyType
 
 from src.domain.models import (
     Chapter,
+    ChapterIdentifier,
     DatabaseError,
     DBMetadata,
     DOMChangeError,
@@ -108,7 +109,7 @@ def calculate_sync_plan(
     chapters_to_insert: list[Chapter] = []
     chapters_to_notify: list[Chapter] = []
     for chapter in valid_chapters:
-        identifier = (chapter.manga_id, chapter.number, chapter.language)
+        identifier = ChapterIdentifier(chapter.manga_id, chapter.number, chapter.language)
         if (
             identifier not in db_state.existing_chapter_identifiers
             and identifier not in already_seen
@@ -129,14 +130,13 @@ def calculate_sync_plan(
     else:
         MAX_NOTIFICATIONS = 5
         if len(chapters_to_notify) > MAX_NOTIFICATIONS:
-            manga_id = str(next(iter(db_state.existing_chapter_identifiers))[0]) or "Unknown"
             warnings_to_log.append(
                 LogEvent(
                     level=LogLevel.WARNING,
                     event_name="notification_spam_prevented",
                     context=MappingProxyType(
                         {
-                            "manga_id": manga_id,
+                            "manga_id": str(db_state.manga_id),
                             "attempted_notifications": len(chapters_to_notify),
                             "limit": MAX_NOTIFICATIONS,
                         }

@@ -2,8 +2,16 @@ from dataclasses import asdict
 from uuid import UUID
 
 from psycopg import Connection
+from psycopg.rows import class_row
 
-from src.domain.models import Chapter, DatabaseError, DBMetadata, Manga, SyncPlan
+from src.domain.models import (
+    Chapter,
+    ChapterIdentifier,
+    DatabaseError,
+    DBMetadata,
+    Manga,
+    SyncPlan,
+)
 
 
 class PostgresRepository:
@@ -25,17 +33,19 @@ class PostgresRepository:
                 )
                 count, max_number = cursor.fetchone() or (0, None)
 
+            with self.conn.cursor(row_factory=class_row(ChapterIdentifier)) as cursor:
                 cursor.execute(
                     """
                     SELECT manga_id, number, language FROM chapters WHERE manga_id = %s
                     """,
                     (manga_id,),
                 )
-                existing_identifiers = frozenset(cursor.fetchall())
+                existing_identifiers = frozenset(cursor)
         except Exception as e:
             raise DatabaseError(f"Failed to fetch metadata: {str(e)}")
 
         return DBMetadata(
+            manga_id=manga_id,
             is_cold_start=(count == 0),
             chapter_count=count,
             max_chapter_number=max_number,

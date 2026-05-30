@@ -105,12 +105,19 @@ class RunContext:
 
 
 @dataclass(frozen=True)
+class ChapterIdentifier:
+    manga_id: UUID
+    number: Decimal
+    language: str
+
+
+@dataclass(frozen=True)
 class DBMetadata:
+    manga_id: UUID
     is_cold_start: bool
     chapter_count: int
     max_chapter_number: Decimal | None
-    existing_chapter_identifiers: frozenset[tuple[UUID, Decimal, str]]
-    # manga_id, number, language
+    existing_chapter_identifiers: frozenset[ChapterIdentifier]
 
 
 @dataclass(frozen=True)

@@ -1,6 +1,7 @@
 from dataclasses import asdict
 from uuid import UUID
 
+import psycopg
 from psycopg import Connection
 from psycopg.rows import class_row
 
@@ -41,7 +42,7 @@ class PostgresRepository:
                     (manga_id,),
                 )
                 existing_identifiers = frozenset(cursor)
-        except Exception as e:
+        except psycopg.Error as e:
             raise DatabaseError(f"Failed to fetch metadata: {str(e)}")
 
         return DBMetadata(
@@ -81,7 +82,7 @@ class PostgresRepository:
                         """,
                         (asdict(c) for c in plan.chapters_to_insert),
                     )
-        except Exception as e:
+        except psycopg.Error as e:
             raise DatabaseError(f"Failed to execute sync plan writes: {str(e)}")
 
     def mark_as_notified(self, chapters: tuple[Chapter, ...]) -> None:
@@ -101,7 +102,7 @@ class PostgresRepository:
                     """,
                     (asdict(c) for c in chapters),
                 )
-        except Exception as e:
+        except psycopg.Error as e:
             raise DatabaseError(f"Failed to mark chapters as notified: {str(e)}")
 
     def get_tracked_urls(self) -> tuple[str, ...]:

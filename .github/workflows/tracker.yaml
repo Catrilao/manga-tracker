@@ -51,11 +51,7 @@ jobs:
 
             - name: Run tracker
               env:
-                  DB_USER: ${{ secrets.DB_USER }}
-                  DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-                  DB_HOST: ${{ secrets.DB_HOST }}
-                  DB_PORT: ${{ secrets.DB_PORT }}
-                  DB_NAME: ${{ secrets.DB_NAME }}
+                  DATABASE_URL: ${{ secrets.DATABASE_URL }}
                   DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
                   GITHUB_RUN_ID: ${{ github.run_id }}
                   GIT_COMMIT: ${{ github.sha }}

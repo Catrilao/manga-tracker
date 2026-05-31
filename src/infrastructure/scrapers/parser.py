@@ -36,7 +36,7 @@ class MangadexChapterParser:
 
             if raw.header_text:
                 num_match = re.search(
-                    r"(\d+(?:\.\d+)?)",
+                    r"(?:Ch\.?|chapter)\s*(\d+(?:\.\d+)?)",
                     raw.header_text,
                     re.IGNORECASE,
                 )

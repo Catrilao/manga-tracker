@@ -8,8 +8,6 @@ from testcontainers.postgres import PostgresContainer
 
 from src.infrastructure.database.connection import get_db_connection
 
-pytest_plugins = ["pytest_playwright"]
-
 
 @pytest.fixture(scope="module")
 def postgres_container() -> Generator[PostgresContainer, None, None]:

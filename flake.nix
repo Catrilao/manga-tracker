@@ -38,6 +38,7 @@
 
           shellHook = ''
             export CHROMIUM_EXECUTABLE_PATH="${pkgs.chromium}/bin/chromium"
+            export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
             echo "Manga Tracker Architecture Loaded"
             echo "Environment: Python $(python3 --version | awk '{print $2}') | $(uv --version)"

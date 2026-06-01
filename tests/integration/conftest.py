@@ -1,3 +1,4 @@
+import os
 from collections.abc import Generator
 from pathlib import Path
 
@@ -6,6 +7,8 @@ import pytest
 from testcontainers.postgres import PostgresContainer
 
 from src.infrastructure.database.connection import get_db_connection
+
+pytest_plugins = ["pytest_playwright"]
 
 
 @pytest.fixture(scope="module")
@@ -47,3 +50,14 @@ def db_connection(
             cursor.execute(
                 "TRUNCATE TABLE chapters, mangas, tracked_mangas RESTART IDENTITY CASCADE;"
             )
+
+
+@pytest.fixture(scope="session")
+def browser_type_launch_args(browser_type_launch_args):
+    args = {**browser_type_launch_args}
+
+    chromium_path = os.environ.get("CHROMIUM_EXECUTABLE_PATH")
+    if chromium_path:
+        args["executable_path"] = chromium_path
+
+    return args

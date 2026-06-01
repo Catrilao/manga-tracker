@@ -59,14 +59,20 @@ class MangadexScraper:
 
             try:
                 page.goto(target_url)
+            except PlaywrightTimeoutError as e:
+                raise NetworkError(f"Network timeout reaching: {target_url}") from e
+            except PlaywrightError as e:
+                raise NetworkError(f"Network failure (DNS/Connection): {str(e)}") from e
+
+            try:
                 page.wait_for_selector(
                     "div.layout-container.manga",
                     timeout=PAGE_LOAD_TIMEOUT_MS,
                 )
             except PlaywrightTimeoutError as e:
-                raise NetworkError(f"Page timeout loading: {target_url}") from e
+                raise DOMChangeError("Manga container CSS missing. Possible DOM change") from e
             except PlaywrightError as e:
-                raise DOMChangeError(f"Playwright navigation failed: {e}") from e
+                raise DOMChangeError(f"Playwright DOM interaction failed: {e}") from e
 
             manga_data = page.evaluate(MANGA_EXTRACTOR_SCRIPT)
             manga_name = manga_data["name"]

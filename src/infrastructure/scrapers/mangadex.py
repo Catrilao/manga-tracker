@@ -36,7 +36,7 @@ def _intercept_route(route: Route) -> None:
     if route.request.resource_type in {"image", "media", "font", "stylesheet"}:
         route.abort()
     else:
-        route.continue_()
+        route.fallback()
 
 
 class MangadexScraper:

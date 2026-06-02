@@ -1,5 +1,6 @@
 from collections.abc import Generator
 from contextlib import contextmanager
+from unittest.mock import MagicMock
 
 from playwright.sync_api import BrowserContext, sync_playwright
 
@@ -11,6 +12,10 @@ def get_browser_context(
     """
     Context manager to manage a headless Chromium browser context lifecycle
     """
+
+    if executable_path == "mock" or not executable_path:
+        yield MagicMock()
+        return
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True, executable_path=executable_path)

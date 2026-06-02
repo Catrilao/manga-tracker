@@ -29,6 +29,15 @@ class DiscordNotifier:
     ) -> requests.Response | None:
         log = get_logger(__name__)
 
+        if "mock" in self.webhook_url or not self.webhook_url:
+            log.info("discord_notification_silenced", reason="Mock webhook URL detected")
+
+            mock_response = requests.Response()
+            mock_response.status_code = 204
+            mock_response.url = self.webhook_url
+
+            return mock_response
+
         base_delay = 1.0
         last_response = None
         for attempt in range(max_retries):

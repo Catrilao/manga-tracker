@@ -18,6 +18,7 @@
             uv
             postgresql
             chromium
+            act
             glib
             nss
             nspr

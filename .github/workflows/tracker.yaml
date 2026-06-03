@@ -1,87 +1,87 @@
 name: Manga Tracker
 
 on:
-    schedule:
-        - cron: "36 18 */5 * *"
-    workflow_dispatch:
+  schedule:
+    - cron: "36 18 */5 * *"
+  workflow_dispatch:
 
 concurrency:
-    group: ${{ github.workflow }}-${{ github.ref }}
-    cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-    check-manga:
-        runs-on: ubuntu-latest
-        timeout-minutes: 5
-        permissions:
-            contents: read
+  check-manga:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
 
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v6
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
 
-            - name: Install uv
-              uses: astral-sh/setup-uv@v7
-              with:
-                  enable-cache: true
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
 
-            - name: Set up Python
-              run: uv python install 3.12
+      - name: Set up Python
+        run: uv python install 3.12
 
-            - name: Install dependencies
-              run: uv sync --frozen
+      - name: Install dependencies
+        run: uv sync --frozen
 
-            - name: Install Playwright Chromium
-              run: uv run playwright install chromium --with-deps
+      - name: Install Playwright Chromium
+        run: uv run playwright install chromium --with-deps
 
-            - name: Get GitHub Runner IP
-              id: ip
-              uses: haythem/public-ip@v1.3
+      - name: Get GitHub Runner IP
+        id: ip
+        uses: haythem/public-ip@v1.3
 
-            - name: Whitelist IP in Supabase
-              env:
-                  SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-                  PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
-                  RUNNER_IP: ${{ steps.ip.outputs.ipv4 }}/32
-              run: |
-                  curl -s --fail-with-body -X PATCH "https://api.supabase.com/v1/projects/$PROJECT_ID/network-restrictions" \
-                      -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
-                      -H "Content-Type: application/json" \
-                      -d "{\"add\": {\"dbAllowedCidrs\": [\"$RUNNER_IP\"]}}"
+      - name: Whitelist IP in Supabase
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+          RUNNER_IP: ${{ steps.ip.outputs.ipv4 }}/32
+        run: |
+          curl -s --fail-with-body -X PATCH "https://api.supabase.com/v1/projects/$PROJECT_ID/network-restrictions" \
+              -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{\"add\": {\"dbAllowedCidrs\": [\"$RUNNER_IP\"]}}"
 
-                  sleep 20
+          sleep 20
 
-            - name: Run tracker
-              env:
-                  DATABASE_URL: ${{ secrets.DATABASE_URL }}
-                  DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-                  GITHUB_RUN_ID: ${{ github.run_id }}
-                  GIT_COMMIT: ${{ github.sha }}
-              run: uv run manga-tracker
+      - name: Run tracker
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GIT_COMMIT: ${{ github.sha }}
+        run: uv run manga-tracker
 
-            - name: Revoke IP from Supabase (Lock the Door)
-              if: always()
-              env:
-                  SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-                  PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
-                  RUNNER_IP: ${{ steps.ip.outputs.ipv4 }}/32
-              run: |
-                  curl -s --fail-with-body -X PATCH "https://api.supabase.com/v1/projects/$PROJECT_ID/network-restrictions" \
-                    -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
-                    -H "Content-Type: application/json" \
-                    -d "{\"remove\": {\"dbAllowedCidrs\": [\"$RUNNER_IP\"]}}"
+      - name: Revoke IP from Supabase (Lock the Door)
+        if: always()
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+          RUNNER_IP: ${{ steps.ip.outputs.ipv4 }}/32
+        run: |
+          curl -s --fail-with-body -X PATCH "https://api.supabase.com/v1/projects/$PROJECT_ID/network-restrictions" \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"remove\": {\"dbAllowedCidrs\": [\"$RUNNER_IP\"]}}"
 
-            - name: Notify on failure
-              if: failure()
-              env:
-                  DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-                  RUN_URL: "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-              run: |
-                  curl -H "Content-Type: application/json" \
-                       -d '{
-                           "embeds": [{
-                               "title": "💀 Critical Failure on Github Actions 💀",
-                               "description": "The workflow failed before completing the script.\n\n[Logs]('"$RUN_URL"')",
-                               "color": 16711680
-                           }]
-                       }' "$DISCORD_WEBHOOK"
+      - name: Notify on failure
+        if: failure()
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          RUN_URL: "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        run: |
+          curl -H "Content-Type: application/json" \
+               -d '{
+                   "embeds": [{
+                       "title": "💀 Critical Failure on Github Actions 💀",
+                       "description": "The workflow failed before completing the script.\n\n[Logs]('"$RUN_URL"')",
+                       "color": 16711680
+                   }]
+               }' "$DISCORD_WEBHOOK"

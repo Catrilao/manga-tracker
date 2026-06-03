@@ -22,7 +22,7 @@ class TestMainCompositionRootSmoke:
         env_simulated["DATABASE_URL"] = postgres_container.get_connection_url().replace(
             "+psycopg2", ""
         )
-        env_simulated["DISCORD_WEBHOOK_URL"] = "http://127.0.0.1:54321/mock-webhook"
+        env_simulated["DISCORD_WEBHOOK"] = "http://127.0.0.1:54321/mock-webhook"
         env_simulated["CHROMIUM_EXECUTABLE_PATH"] = "mock"
         env_simulated["TRACKER_ENV"] = "test"
 
@@ -47,7 +47,7 @@ class TestMainCompositionRootSmoke:
         env_simulated = os.environ.copy()
 
         env_simulated["DATABASE_URL"] = ""
-        env_simulated["DISCORD_WEBHOOK_URL"] = ""
+        env_simulated["DISCORD_WEBHOOK"] = ""
         env_simulated["CHROMIUM_EXECUTABLE_PATH"] = ""
         env_simulated["TRACKER_ENV"] = "invalid_path"
 
@@ -70,7 +70,7 @@ class TestMainCompositionRootSmoke:
         env_simulated["DATABASE_URL"] = (
             "postgresql://usuario_fantasma:password_falso@localhost:9999/db_inexistente"
         )
-        env_simulated["DISCORD_WEBHOOK_URL"] = "http://127.0.0.1:54321/mock-webhook"
+        env_simulated["DISCORD_WEBHOOK"] = "http://127.0.0.1:54321/mock-webhook"
         env_simulated["CHROMIUM_EXECUTABLE_PATH"] = "/dev/null/non-existent-path"
         env_simulated["TRACKER_ENV"] = "test"
 
@@ -111,7 +111,7 @@ class TestMainCompositionRootOperationalEdgeCases:
             conn.commit()
 
         env_simulated["DATABASE_URL"] = db_url
-        env_simulated["DISCORD_WEBHOOK_URL"] = "http://127.0.0.1:54321/mock-webhook"
+        env_simulated["DISCORD_WEBHOOK"] = "http://127.0.0.1:54321/mock-webhook"
         env_simulated["CHROMIUM_EXECUTABLE_PATH"] = "mock"
         env_simulated["TRACKER_ENV"] = "test"
 

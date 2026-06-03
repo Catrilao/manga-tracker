@@ -12,7 +12,7 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 @dataclass(frozen=True)
 class AppConfig:
     database_url: str
-    discord_webhook_url: str
+    discord_webhook: str
     chromium_executable_path: str | None
 
 
@@ -40,7 +40,7 @@ def load_config() -> AppConfig:
 
     return AppConfig(
         database_url=values["DATABASE_URL"],
-        discord_webhook_url=values["DISCORD_WEBHOOK"],
+        discord_webhook=values["DISCORD_WEBHOOK"],
         chromium_executable_path=opt_chromium_path.strip() if opt_chromium_path else None,
     )
 

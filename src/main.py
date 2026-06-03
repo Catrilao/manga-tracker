@@ -31,7 +31,7 @@ def main() -> None:
         log.critical("configuration_failed", error=str(e))
         sys.exit(1)
 
-    notifier = DiscordNotifier(config.discord_webhook_url)
+    notifier = DiscordNotifier(config.discord_webhook)
 
     try:
         with (

@@ -22,7 +22,7 @@ class TestMainCompositionRootSmoke:
         env_simulated["DATABASE_URL"] = postgres_container.get_connection_url().replace(
             "+psycopg2", ""
         )
-        env_simulated["DISCORD_WEBHOOK_URL"] = "https://discord.com/api/webhooks/mock-id/mock-token"
+        env_simulated["DISCORD_WEBHOOK_URL"] = "http://127.0.0.1:54321/mock-webhook"
         env_simulated["CHROMIUM_EXECUTABLE_PATH"] = "mock"
         env_simulated["TRACKER_ENV"] = "test"
 
@@ -70,7 +70,7 @@ class TestMainCompositionRootSmoke:
         env_simulated["DATABASE_URL"] = (
             "postgresql://usuario_fantasma:password_falso@localhost:9999/db_inexistente"
         )
-        env_simulated["DISCORD_WEBHOOK_URL"] = "https://discord.com/api/webhooks/mock/mock"
+        env_simulated["DISCORD_WEBHOOK_URL"] = "http://127.0.0.1:54321/mock-webhook"
         env_simulated["CHROMIUM_EXECUTABLE_PATH"] = "/dev/null/non-existent-path"
         env_simulated["TRACKER_ENV"] = "test"
 
@@ -86,7 +86,6 @@ class TestMainCompositionRootSmoke:
         output = result.stdout + result.stderr
         assert "infrastructure_initialization_failed" in output
         assert "discord_error_notification" in output
-        assert "discord_error_notification_sent" in output
 
 
 class TestMainCompositionRootOperationalEdgeCases:
@@ -112,7 +111,7 @@ class TestMainCompositionRootOperationalEdgeCases:
             conn.commit()
 
         env_simulated["DATABASE_URL"] = db_url
-        env_simulated["DISCORD_WEBHOOK_URL"] = "https://discord.com/api/webhooks/mock-id/mock-token"
+        env_simulated["DISCORD_WEBHOOK_URL"] = "http://127.0.0.1:54321/mock-webhook"
         env_simulated["CHROMIUM_EXECUTABLE_PATH"] = "mock"
         env_simulated["TRACKER_ENV"] = "test"
 

@@ -105,7 +105,8 @@ class TestMainCompositionRootOperationalEdgeCases:
                 cursor.execute(
                     """
                     INSERT INTO tracked_mangas (url)
-                    VALUES('https://mangadex.org/title/corrupted-url-format');
+                    VALUES('https://mangadex.org/title/corrupted-url-format')
+                    ON CONFLICT DO NOTHING;
                     """
                 )
             conn.commit()

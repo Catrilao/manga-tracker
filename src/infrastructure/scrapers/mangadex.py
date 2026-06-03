@@ -58,7 +58,7 @@ class MangadexScraper:
             page.route("**/*", _intercept_route)
 
             try:
-                page.goto(target_url)
+                page.goto(target_url, wait_until="domcontentloaded")
             except PlaywrightTimeoutError as e:
                 raise NetworkError(f"Network timeout reaching: {target_url}") from e
             except PlaywrightError as e:
@@ -93,7 +93,9 @@ class MangadexScraper:
             )
 
             try:
-                page.wait_for_selector(".line-clamp-1", timeout=CHAPTER_LOAD_TIMEOUT_MS)
+                page.wait_for_selector(
+                    ".line-clamp-1", state="attached", timeout=CHAPTER_LOAD_TIMEOUT_MS
+                )
                 chapters_list = page.evaluate(CHAPTER_EXTRACTOR_SCRIPT)
                 raw_chapters_data = [RawChapter(**chapter) for chapter in chapters_list]
 

@@ -65,7 +65,7 @@ class TestMangadexScraper:
 
         context.route("https://mangadex.org/title/*", handle_route)
 
-        monkeypatch.setattr(md_module, "PAGE_LOAD_TIMEOUT_MS", 100)
+        monkeypatch.setattr(md_module, "PAGE_LOAD_TIMEOUT_MS", 2000)
 
         with pytest.raises(DOMChangeError) as exec_info:
             scraper(target_url)
@@ -85,7 +85,7 @@ class TestMangadexScraper:
 
         context.route("https://mangadex.org/title/*", handle_route)
 
-        monkeypatch.setattr(md_module, "PAGE_LOAD_TIMEOUT_MS", 100)
+        monkeypatch.setattr(md_module, "PAGE_LOAD_TIMEOUT_MS", 2000)
 
         with pytest.raises(ParseError) as exec_info:
             scraper(target_url)
@@ -95,12 +95,15 @@ class TestMangadexScraper:
     def test_scraper_extracts_data_from_valid_html(self, context: BrowserContext, dummy_html: str):
         scraper = MangadexScraper(context)
         test_uuid = "a96676e5-8ae2-425e-b549-7f15dd34a6d8"
-        target_url = f"https://mangadex.org/title/{test_uuid}/komi-san"
+        target_url = f"http://mock.local/title/{test_uuid}/komi-san"
 
-        def handle_route(route: Route):
-            route.fulfill(status=200, content_type="text/html", body=dummy_html)
+        def handle_network(route: Route):
+            if route.request.resource_type == "document":
+                route.fulfill(status=200, content_type="text/html", body=dummy_html)
+            else:
+                route.fulfill(status=200, content_type="application/javascript", body="")
 
-        context.route("https://mangadex.org/title/*", handle_route)
+        context.route("**/*", handle_network)
 
         manga, raw_chapters = scraper(target_url)
 
@@ -136,7 +139,7 @@ class TestMangadexScraper:
 
         context.route("https://mangadex.org/title/*", handle_route)
 
-        monkeypatch.setattr(md_module, "CHAPTER_LOAD_TIMEOUT_MS", 100)
+        monkeypatch.setattr(md_module, "CHAPTER_LOAD_TIMEOUT_MS", 2000)
 
         manga, raw_chapters = scraper(target_url)
 

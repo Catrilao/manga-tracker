@@ -11,6 +11,8 @@ on:
       - ".github/workflows/ci.yaml"
       - ".github/workflows/dependabot-uv-lock.yaml"
       - "flake.nix"
+      - "flake.lock"
+
   pull_request:
     branches: [main]
     paths:
@@ -19,38 +21,38 @@ on:
       - "pyproject.toml"
       - "uv.lock"
       - "flake.nix"
+      - "flake.lock"
 
 jobs:
   quality-checks:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
 
       - name: Install Nix
-        uses: determinatesystems/nix-installer-action@22
+        uses: determinatesystems/nix-installer-action@v22
 
       - name: Magic Nix Cache
-        uses: determinatesystems/magic-nix-cache-action@14
+        uses: determinatesystems/magic-nix-cache-action@v14
 
       - name: Cache uv
-        uses: actions/cache@5
+        uses: actions/cache@v5
         with:
           path: ~/.cache/uv
           key: ${{ github.os }}-uv-${{ hashFiles('uv.lock') }}
           restore-keys: |
             ${{ github.os }}-uv-
 
-      - name: Run Linters and Formatting Check
-        run: |
-          nix develop .#default --command ruff format --check .
-          nix develop .#default --command ruff check .
-
-      - name: Run Static Type Checking (MyPy)
-        run: nix develop .#default --command mypy src
-
-      - name: Run Full Test Suite
-        run: nix develop .#default --command pytest
+      - name: Run CI
+        run: nix develop .#ci --command bash -lc "
+          uv sync &&
+          uv run ruff check . &&
+          uv run ruff format --check &&
+          uv run mypy src &&
+          uv run pytest -n auto
+          "
         env:
           TRACKER_ENV: test
           DATABASE_URL: postgresql://mock:mock@localhost:5432/mock

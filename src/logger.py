@@ -1,7 +1,7 @@
 import logging
 import logging.config
 import os
-from contextlib import _GeneratorContextManager
+from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Any, cast
 from uuid import UUID, uuid4
@@ -115,7 +115,7 @@ def bind_run_context() -> RunContext:
 
 def manga_log_context(
     manga_id: UUID, manga_name: str, manga_url: str
-) -> _GeneratorContextManager[None]:
+) -> AbstractContextManager[None]:
     """
     A context manager to safely bind and unbind manga-level logs.
 
@@ -124,10 +124,13 @@ def manga_log_context(
             fetch_info_chapter(...)
             store_chapter_data(...)
     """
-    return structlog.contextvars.bound_contextvars(
-        manga_id=str(manga_id),
-        manga_name=manga_name,
-        manga_url=manga_url,
+    return cast(
+        AbstractContextManager[None],
+        structlog.contextvars.bound_contextvars(
+            manga_id=str(manga_id),
+            manga_name=manga_name,
+            manga_url=manga_url,
+        ),
     )
 
 

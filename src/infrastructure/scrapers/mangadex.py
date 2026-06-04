@@ -19,7 +19,7 @@ from src.domain.models import (
 from src.logger import get_logger
 
 PAGE_LOAD_TIMEOUT_MS = 20000
-CHAPTER_LOAD_TIMEOUT_MS = 3000
+CHAPTER_LOAD_TIMEOUT_MS = 15000
 
 JS_DIR = Path(__file__).parent / "js"
 CHAPTER_EXTRACTOR_PATH = JS_DIR / "extract_chapters.js"
@@ -94,7 +94,7 @@ class MangadexScraper:
 
             try:
                 page.wait_for_selector(
-                    ".line-clamp-1", state="attached", timeout=CHAPTER_LOAD_TIMEOUT_MS
+                    ".chapter-header", state="attached", timeout=CHAPTER_LOAD_TIMEOUT_MS
                 )
                 chapters_list = page.evaluate(CHAPTER_EXTRACTOR_SCRIPT)
                 raw_chapters_data = [RawChapter(**chapter) for chapter in chapters_list]

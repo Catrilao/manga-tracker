@@ -2,7 +2,7 @@ name: Manga Tracker
 
 on:
   schedule:
-    - cron: "36 18 */5 * *"
+    - cron: "36 18 * * *"
   workflow_dispatch:
 
 concurrency:
@@ -12,7 +12,7 @@ concurrency:
 jobs:
   check-manga:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 20
     permissions:
       contents: read
 
@@ -20,19 +20,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
+      - name: Install Nix
+        uses: determinatesystems/nix-installer-action@v22
+
+      - name: Cache uv
+        uses: actions/cache@v5
         with:
-          enable-cache: true
-
-      - name: Set up Python
-        run: uv python install 3.12
-
-      - name: Install dependencies
-        run: uv sync --frozen
-
-      - name: Install Playwright Chromium
-        run: uv run playwright install chromium --with-deps
+          path: ~/.cache/uv
+          key: ${{ github.os }}-uv-${{ hashFiles('uv.lock') }}
+          restore-keys: |
+            ${{ github.os }}-uv-
 
       - name: Get GitHub Runner IP
         id: ip
@@ -57,7 +54,11 @@ jobs:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
           GITHUB_RUN_ID: ${{ github.run_id }}
           GIT_COMMIT: ${{ github.sha }}
-        run: uv run manga-tracker
+        run: |
+          nix develop .#ci --command bash -lc "
+            uv sync &&
+            uv run manga-tracker
+          "
 
       - name: Revoke IP from Supabase (Lock the Door)
         if: always()
@@ -72,16 +73,17 @@ jobs:
             -d "{\"remove\": {\"dbAllowedCidrs\": [\"$RUNNER_IP\"]}}"
 
       - name: Notify on failure
-        if: failure()
+        if: failure() || cancelled()
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
           RUN_URL: "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
         run: |
-          curl -H "Content-Type: application/json" \
+          curl -sS --fail-with-body --retry 3 \
+               -H "Content-Type: application/json" \
                -d '{
                    "embeds": [{
                        "title": "💀 Critical Failure on Github Actions 💀",
-                       "description": "The workflow failed before completing the script.\n\n[Logs]('"$RUN_URL"')",
+                       "description": "The workflow failed before completing the script.\n\n[Logs](${{ env.RUN_URL }})",
                        "color": 16711680
                    }]
                }' "$DISCORD_WEBHOOK"

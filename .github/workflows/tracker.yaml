@@ -2,7 +2,7 @@ name: Manga Tracker
 
 on:
   schedule:
-    - cron: "36 18 * * *"
+    - cron: "36 18 */5 * *"
   workflow_dispatch:
 
 concurrency:

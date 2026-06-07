@@ -3,6 +3,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import psycopg
 import pytest
 
 
@@ -17,11 +18,14 @@ class TestMainCompositionRootSmoke:
     ):
         del init_database
 
+        db_url = postgres_container.get_connection_url().replace("+psycopg2", "")
+
+        with psycopg.connect(db_url, autocommit=True) as conn:
+            conn.execute("TRUNCATE TABLE tracked_mangas;")
+
         env_simulated = os.environ.copy()
 
-        env_simulated["DATABASE_URL"] = postgres_container.get_connection_url().replace(
-            "+psycopg2", ""
-        )
+        env_simulated["DATABASE_URL"] = db_url
         env_simulated["DISCORD_WEBHOOK"] = "http://127.0.0.1:54321/mock-webhook"
         env_simulated["CHROMIUM_EXECUTABLE_PATH"] = "mock"
         env_simulated["TRACKER_ENV"] = "test"

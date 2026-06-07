@@ -16,3 +16,8 @@ logs/
 
 .envrc
 .direnv/
+
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/

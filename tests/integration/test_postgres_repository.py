@@ -1,8 +1,9 @@
 from decimal import Decimal
 
 import psycopg
+import pytest
 
-from src.domain.models import Chapter, ChapterIdentifier, DBMetadata, Manga, SyncPlan
+from src.domain.models import Chapter, ChapterIdentifier, DatabaseError, DBMetadata, Manga, SyncPlan
 from src.infrastructure.database.postgres import PostgresRepository
 
 
@@ -88,3 +89,23 @@ def test_mark_as_notified(db_connection: psycopg.Connection, make_manga, make_ch
 
         notified_status = row[0]
         assert notified_status is True
+
+
+def test_repository_handles_transaction_rollback(
+    db_connection, make_manga, make_chapter, monkeypatch: pytest.MonkeyPatch
+):
+    def mock_execute(*args, **kwargs):
+        del args
+        del kwargs
+        raise psycopg.OperationalError("Database died, смерть")
+
+    target_manga: Manga = make_manga()
+    chapter: Chapter = make_chapter(manga_id=target_manga.uuid, number=Decimal("232"))
+
+    plan = SyncPlan(chapters_to_insert=(chapter,), chapters_to_notify=(chapter,), log_events=())
+    respository = PostgresRepository(db_connection)
+
+    monkeypatch.setattr(psycopg.Cursor, "execute", mock_execute)
+
+    with pytest.raises(DatabaseError):
+        respository.store_chapters(target_manga, plan)

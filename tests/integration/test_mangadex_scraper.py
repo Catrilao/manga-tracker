@@ -51,6 +51,33 @@ class TestMangadexScraper:
 
         assert "Network failure" in str(exec_info.value)
 
+    def test_scraper_raises_network_error_on_timeout(self, context: BrowserContext):
+        target_url = "https://mangadex.org/title/a96676e5-8ae2-425e-b549-7f15dd34a6d8"
+
+        context.set_default_navigation_timeout(50)
+
+        def handle_route(route):
+            del route
+            pass
+
+        context.route("**/*", handle_route)
+
+        scraper = MangadexScraper(context)
+        with pytest.raises(NetworkError, match="Network timeout"):
+            scraper(target_url)
+
+    def test_scraper_raises_dom_error_on_missing_selector(self, context: BrowserContext):
+        target_url = "https://mangadex.org/title/a96676e5-8ae2-425e-b549-7f15dd34a6d8"
+
+        def handle_route(route):
+            route.fulfill(status=200, body="<html><body><h1>Cualquier cosa</h1></body></html>")
+
+        context.route("**/*", handle_route)
+
+        scraper = MangadexScraper(context)
+        with pytest.raises(DOMChangeError, match="Possible DOM change"):
+            scraper(target_url)
+
     def test_raises_dom_change_error_if_container_missing(
         self,
         context: BrowserContext,

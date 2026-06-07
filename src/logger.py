@@ -23,11 +23,11 @@ SHARED_PROCESSORS: list[Any] = [
 ]
 
 
-def _ensure_log_dir() -> None:
+def _ensure_log_dir() -> None:  # pragma: no cover
     LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def configure_logging() -> None:
+def configure_logging() -> None:  # pragma: no cover
     """
     Call once at program startup, after load_dotenv().
     Sets up:
@@ -166,7 +166,7 @@ def execute_log_event(event: LogEvent) -> None:
         log.warning("unknown_log_level", unknown_event_name=event.event_name, **log_kwargs)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     configure_logging()
     run_id = bind_run_context()
     log = get_logger(__name__)

@@ -1,20 +1,20 @@
-import os
-import subprocess
 import sys
-from pathlib import Path
 
 import psycopg
 import pytest
 
+from src.main import main
 
-@pytest.fixture
-def main_path():
-    return Path(__file__).parent.parent.parent / "src" / "main.py"
+
+@pytest.fixture(autouse=True)
+def clear_module_cache(monkeypatch):
+    monkeypatch.delitem(sys.modules, "src.config", raising=False)
+    monkeypatch.setattr("src.main.configure_logging", lambda: None)
 
 
 class TestMainCompositionRootSmoke:
     def test_main_happy_path_with_empty_database(
-        self, main_path, postgres_container, init_database
+        self, postgres_container, init_database, monkeypatch, capsys
     ):
         del init_database
 
@@ -23,82 +23,77 @@ class TestMainCompositionRootSmoke:
         with psycopg.connect(db_url, autocommit=True) as conn:
             conn.execute("TRUNCATE TABLE tracked_mangas;")
 
-        env_simulated = os.environ.copy()
+        monkeypatch.setenv("DATABASE_URL", db_url)
+        monkeypatch.setenv("DISCORD_WEBHOOK", "http://127.0.0.1:54321/mock-webhook")
+        monkeypatch.setenv("CHROMIUM_EXECUTABLE_PATH", "mock")
+        monkeypatch.setenv("TRACKER_ENV", "test")
 
-        env_simulated["DATABASE_URL"] = db_url
-        env_simulated["DISCORD_WEBHOOK"] = "http://127.0.0.1:54321/mock-webhook"
-        env_simulated["CHROMIUM_EXECUTABLE_PATH"] = "mock"
-        env_simulated["TRACKER_ENV"] = "test"
+        with pytest.raises(SystemExit) as exec_info:
+            main()
 
-        result = subprocess.run(
-            [sys.executable, str(main_path)],
-            env=env_simulated,
-            capture_output=True,
-            text=True,
-        )
+        captured = capsys.readouterr()
+        output = captured.out + captured.err
 
-        output = result.stdout + result.stderr
-
-        assert result.returncode == 0, (
-            f"Expected exit code 0 on successful run, got {result.returncode}. Output:\n{output}"
+        assert exec_info.value.code == 0, (
+            f"Expected exit code 0 on successful run, got {exec_info.value.code}. Output:\n{output}"
         )
 
         assert "tracker_booting" in output
         assert "postgres_connection_established" in output
         assert "no_urls_found_in_database" in output
 
-    def test_main_exits_with_error_on_configuration_failure(self, main_path):
-        env_simulated = os.environ.copy()
+    def test_main_exits_with_error_on_configuration_failure(self, monkeypatch, capsys):
+        monkeypatch.setenv("DATABASE_URL", "")
+        monkeypatch.setenv("DISCORD_WEBHOOK", "")
+        monkeypatch.setenv("CHROMIUM_EXECUTABLE_PATH", "")
+        monkeypatch.setenv("TRACKER_ENV", "invalid_path")
 
-        env_simulated["DATABASE_URL"] = ""
-        env_simulated["DISCORD_WEBHOOK"] = ""
-        env_simulated["CHROMIUM_EXECUTABLE_PATH"] = ""
-        env_simulated["TRACKER_ENV"] = "invalid_path"
+        with pytest.raises(SystemExit) as exec_info:
+            main()
 
-        result = subprocess.run(
-            [sys.executable, str(main_path)],
-            env=env_simulated,
-            capture_output=True,
-            text=True,
+        captured = capsys.readouterr()
+        output = captured.out + captured.err
+
+        assert exec_info.value.code == 1, (
+            f"Expected return code to be 1, got: {exec_info.value.code}"
         )
 
-        assert result.returncode == 1, f"Expected return code to be 1, got: {result.returncode}"
-
-        output = result.stdout + result.stderr
+        output = captured.out + captured.err
         assert "configuration_failed" in output
         assert "tracker_booting" in output
 
-    def test_main_exits_with_error_on_infrastructure_initialization_failure(self, main_path):
-        env_simulated = os.environ.copy()
+    def test_main_exits_with_error_on_infrastructure_initialization_failure(
+        self, monkeypatch, capsys
+    ):
 
-        env_simulated["DATABASE_URL"] = (
-            "postgresql://usuario_fantasma:password_falso@localhost:9999/db_inexistente"
+        monkeypatch.setenv(
+            "DATABASE_URL",
+            "postgresql://usuario_fantasma:password_falso@localhost:9999/db_inexistente",
         )
-        env_simulated["DISCORD_WEBHOOK"] = "http://127.0.0.1:54321/mock-webhook"
-        env_simulated["CHROMIUM_EXECUTABLE_PATH"] = "/dev/null/non-existent-path"
-        env_simulated["TRACKER_ENV"] = "test"
+        monkeypatch.setenv("DISCORD_WEBHOOK", "http://127.0.0.1:54321/mock-webhook")
+        monkeypatch.setenv("CHROMIUM_EXECUTABLE_PATH", "/dev/null/non-existent-path")
+        monkeypatch.setenv("TRACKER_ENV", "test")
 
-        result = subprocess.run(
-            [sys.executable, str(main_path)],
-            env=env_simulated,
-            capture_output=True,
-            text=True,
+        with pytest.raises(SystemExit) as exec_info:
+            main()
+
+        captured = capsys.readouterr()
+        output = captured.out + captured.err
+
+        assert exec_info.value.code == 1, (
+            f"Expected return code to be 1, got: {exec_info.value.code}"
         )
 
-        assert result.returncode == 1, f"Expected return code to be 1, got: {result.returncode}"
-
-        output = result.stdout + result.stderr
         assert "infrastructure_initialization_failed" in output
         assert "discord_error_notification" in output
 
 
 class TestMainCompositionRootOperationalEdgeCases:
     def test_main_handles_database_loss_during_active_batch_execution(
-        self, main_path, postgres_container, init_database
+        self, postgres_container, init_database, monkeypatch, capsys
     ):
         del init_database
 
-        env_simulated = os.environ.copy()
         db_url = postgres_container.get_connection_url().replace("+psycopg2", "")
 
         import psycopg
@@ -114,21 +109,18 @@ class TestMainCompositionRootOperationalEdgeCases:
                 )
             conn.commit()
 
-        env_simulated["DATABASE_URL"] = db_url
-        env_simulated["DISCORD_WEBHOOK"] = "http://127.0.0.1:54321/mock-webhook"
-        env_simulated["CHROMIUM_EXECUTABLE_PATH"] = "mock"
-        env_simulated["TRACKER_ENV"] = "test"
+        monkeypatch.setenv("DATABASE_URL", db_url)
+        monkeypatch.setenv("DISCORD_WEBHOOK", "http://127.0.0.1:54321/mock-webhook")
+        monkeypatch.setenv("CHROMIUM_EXECUTABLE_PATH", "mock")
+        monkeypatch.setenv("TRACKER_ENV", "test")
 
-        result = subprocess.run(
-            [sys.executable, str(main_path)],
-            env=env_simulated,
-            capture_output=True,
-            text=True,
-        )
+        with pytest.raises(SystemExit) as exec_info:
+            main()
 
-        output = result.stdout + result.stderr
+        captured = capsys.readouterr()
+        output = captured.out + captured.err
 
         assert "postgres_connection_established" in output
-        assert result.returncode == 1, (
-            f"Expected runtime errors to yield exit code 1, got {result.returncode}"
+        assert exec_info.value.code == 1, (
+            f"Expected runtime errors to yield exit code 1, got {exec_info.value.code}"
         )

@@ -25,9 +25,10 @@ class Severity(Enum):
 
 
 class AuditStatus(StrEnum):
+    STARTED = "started"
     SUCCESS = "success"
-    ERROR = "error"
-    CRITICAL = "critical"
+    FAILED = "failed"
+    TIMEOUT = "timeout"
 
 
 class ControlSignal(Enum):
@@ -70,10 +71,13 @@ class ScrapeAuditRecord:
     chapters_found: int = 0
     chapters_new: int = 0
     chapters_skipped: int = 0
-    status: str = "started"
+    null_chapter_pct: float | None = None
+    status: str = AuditStatus.STARTED.value
+    http_status_code: int | None = None
     error_class: str | None = None
     error_message: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+    notified_at: datetime | None = None
 
     def mark_finished(self, status: AuditStatus, max_skipped_details: int = 50) -> None:
         self.status = status.value
@@ -81,11 +85,7 @@ class ScrapeAuditRecord:
         self.duration_ms = int((self.finished_at - self.started_at).total_seconds() * 1000)
 
         if self.status == AuditStatus.SUCCESS and self.chapters_found > 0:
-            self.metadata["null_chapter_pct"] = round(
-                (self.chapters_skipped / self.chapters_found) * 100, 2
-            )
-        else:
-            self.metadata["null_chapter_pct"] = None
+            self.null_chapter_pct = round((self.chapters_skipped / self.chapters_found) * 100, 2)
 
         if "skipped_details" in self.metadata:
             details = self.metadata["skipped_details"]
@@ -95,6 +95,9 @@ class ScrapeAuditRecord:
                 self.metadata["skipped_details"] = details[:max_skipped_details]
                 self.metadata["skipped_details_truncated"] = True
                 self.metadata["skipped_details_total_count"] = total_skipped
+
+    def mark_notified(self) -> None:
+        self.notified_at = datetime.now(UTC)
 
 
 @dataclass(frozen=True)
@@ -138,9 +141,11 @@ class SyncPlan:
 class TrackerBaseException(Exception):
     """Base exception for all Manga Tracker domain and infrastructure errors."""
 
-    def __init__(self, message: str, severity: Severity) -> None:
+    severity: Severity = Severity.ERROR
+    audit_status: AuditStatus = AuditStatus.FAILED
+
+    def __init__(self, message: str) -> None:
         super().__init__(message)
-        self.severity = severity
 
     @property
     def color_code(self) -> int:
@@ -148,44 +153,49 @@ class TrackerBaseException(Exception):
 
 
 class ConfigurationError(TrackerBaseException):
+    severity: Severity = Severity.CRITICAL
+    audit_status: AuditStatus = AuditStatus.FAILED
+
     def __init__(
         self,
         message: str = "Initial configuration error",
-        severity: Severity = Severity.CRITICAL,
     ) -> None:
-        super().__init__(message, severity)
+        super().__init__(message)
 
 
 class DatabaseError(TrackerBaseException):
+    severity: Severity = Severity.CRITICAL
+    audit_status: AuditStatus = AuditStatus.FAILED
+
     def __init__(
         self,
         message: str = "Database fetch/logic error",
-        severity: Severity = Severity.CRITICAL,
     ) -> None:
-        super().__init__(message, severity)
+        super().__init__(message)
 
 
 class ScraperBaseException(TrackerBaseException):
     """Base category for all errors that occur during the extraction phase."""
 
-    def __init__(
-        self,
-        message: str,
-        severity: Severity = Severity.ERROR,
-    ) -> None:
-        super().__init__(message, severity)
+    severity: Severity = Severity.ERROR
+    audit_status: AuditStatus = AuditStatus.FAILED
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
 
 
 class DOMChangeError(ScraperBaseException):
     def __init__(self, message: str = "Possible DOM change") -> None:
-        super().__init__(message, Severity.ERROR)
+        super().__init__(message)
 
 
 class ParseError(ScraperBaseException):
     def __init__(self, message: str = "Data parsing error") -> None:
-        super().__init__(message, Severity.ERROR)
+        super().__init__(message)
 
 
 class NetworkError(ScraperBaseException):
+    audit_status = AuditStatus.TIMEOUT
+
     def __init__(self, message: str = "Network error") -> None:
-        super().__init__(message, Severity.ERROR)
+        super().__init__(message)

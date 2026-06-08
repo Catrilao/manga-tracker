@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from src.domain.models import Chapter, DBMetadata, Manga, SyncPlan
+from src.domain.models import Chapter, DBMetadata, Manga, RunContext, ScrapeAuditRecord, SyncPlan
 
 
 class FakeDatabase:
@@ -13,6 +13,7 @@ class FakeDatabase:
         self.stored_plans: list[SyncPlan] = []
         self.notified_chapters: list[tuple[Chapter, ...]] = []
         self._tracked_urls = tracked_urls
+        self.audit_records: list[ScrapeAuditRecord] = []
 
     def get_metadata(self, manga_id: UUID) -> DBMetadata:
         del manga_id
@@ -27,6 +28,10 @@ class FakeDatabase:
 
     def get_tracked_urls(self) -> tuple[str, ...]:
         return self._tracked_urls
+
+    def save_audit_record(self, run_context: RunContext, record: ScrapeAuditRecord) -> None:
+        del run_context
+        self.audit_records.append(record)
 
 
 class FailingDatabaseStub:
@@ -48,3 +53,8 @@ class FailingDatabaseStub:
 
     def get_tracked_urls(self) -> tuple[str, ...]:
         raise self.error
+
+    def save_audit_record(self, run_context: RunContext, record: ScrapeAuditRecord) -> None:
+        del run_context
+        del record
+        pass

@@ -1,7 +1,15 @@
 from typing import Protocol
 from uuid import UUID
 
-from src.domain.models import Chapter, DBMetadata, Manga, RawChapter, RunContext, SyncPlan
+from src.domain.models import (
+    Chapter,
+    DBMetadata,
+    Manga,
+    RawChapter,
+    RunContext,
+    ScrapeAuditRecord,
+    SyncPlan,
+)
 
 
 class SyncServicePort(Protocol):
@@ -43,6 +51,7 @@ class DatabasePort(Protocol):
     def store_chapters(self, manga: Manga, plan: SyncPlan) -> None: ...
     def mark_as_notified(self, chapters: tuple[Chapter, ...]) -> None: ...
     def get_tracked_urls(self) -> tuple[str, ...]: ...
+    def save_audit_record(self, run_context: RunContext, record: ScrapeAuditRecord) -> None: ...
 
 
 class NotifierPort(Protocol):

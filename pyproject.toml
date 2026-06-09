@@ -1,6 +1,6 @@
 [project]
 name = "manga-tracker"
-version = "1.0.0"
+version = "1.1.0"
 description = "Automated tracker designed to nofity via discord notifications of new releases of tracked mangas"
 readme = "README.md"
 requires-python = ">=3.12"

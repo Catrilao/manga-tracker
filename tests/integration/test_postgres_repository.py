@@ -3,7 +3,17 @@ from decimal import Decimal
 import psycopg
 import pytest
 
-from src.domain.models import Chapter, ChapterIdentifier, DatabaseError, DBMetadata, Manga, SyncPlan
+from src.domain.models import (
+    AuditStatus,
+    Chapter,
+    ChapterIdentifier,
+    DatabaseError,
+    DBMetadata,
+    Manga,
+    RunContext,
+    ScrapeAuditRecord,
+    SyncPlan,
+)
 from src.infrastructure.database.postgres import PostgresRepository
 
 
@@ -109,3 +119,49 @@ def test_repository_handles_transaction_rollback(
 
     with pytest.raises(DatabaseError):
         respository.store_chapters(target_manga, plan)
+
+
+def test_repository_saves_and_updates_audit_record(db_connection, make_manga):
+    repository = PostgresRepository(db_connection)
+    target_manga: Manga = make_manga()
+
+    run_context = RunContext(run_id=target_manga.uuid, gh_run_id="local", git_commit="abc123")
+
+    audit = ScrapeAuditRecord(
+        manga_id=target_manga.uuid,
+        manga_name=target_manga.name,
+        chapters_found=10,
+    )
+
+    audit.mark_finished(AuditStatus.FAILED)
+    repository.save_audit_record(run_context, audit)
+
+    with db_connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT status, chapters_found FROM scrape_runs WHERE run_id = %s AND manga_id = %s
+            """,
+            (run_context.run_id, target_manga.uuid),
+        )
+        row = cursor.fetchone()
+        assert row is not None
+        assert row[0] == "failed"
+        assert row[1] == 10
+
+    audit.status = AuditStatus.SUCCESS.value
+    audit.chapters_found = 15
+    audit.mark_notified()
+
+    repository.save_audit_record(run_context, audit)
+
+    with db_connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT status, chapters_found FROM scrape_runs WHERE run_id = %s AND manga_id = %s
+            """,
+            (run_context.run_id, target_manga.uuid),
+        )
+        row = cursor.fetchone()
+        assert row is not None
+        assert row[0] == "success"
+        assert row[1] == 15

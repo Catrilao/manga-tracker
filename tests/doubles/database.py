@@ -37,6 +37,7 @@ class FakeDatabase:
 class FailingDatabaseStub:
     def __init__(self, exception_to_throw: Exception):
         self.error = exception_to_throw
+        self.audit_records: list[ScrapeAuditRecord] = []
 
     def get_metadata(self, manga_id: UUID) -> DBMetadata:
         del manga_id
@@ -56,5 +57,5 @@ class FailingDatabaseStub:
 
     def save_audit_record(self, run_context: RunContext, record: ScrapeAuditRecord) -> None:
         del run_context
-        del record
+        self.audit_records.append(record)
         pass

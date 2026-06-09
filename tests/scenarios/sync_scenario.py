@@ -6,7 +6,7 @@ from structlog.testing import capture_logs
 from structlog.typing import EventDict
 
 from src.core.services import MangaSyncService
-from src.domain.models import Chapter, ChapterIdentifier, Manga, RawChapter
+from src.domain.models import Chapter, ChapterIdentifier, Manga, RawChapter, ScrapeAuditRecord
 from tests.doubles.database import FailingDatabaseStub, FakeDatabase
 from tests.doubles.parser import ConfigurableParserStub, FailingParserStub
 from tests.doubles.scraper import ConfigurableScraperStub, FailingScraperStub
@@ -212,6 +212,47 @@ class MangaSyncScenario:
                 f"Missed or mismatched kwargs in log '{expected_event}'.\n"
                 f"Expected subset: {expected_kwargs}\n"
                 f"Actual log: {target_log}"
+            )
+
+        return self
+
+    def assert_audit_saved(
+        self,
+        expected_status: str,
+        expected_chapters_found: int = 0,
+        expected_chapters_new: int = 0,
+        expected_error_class: str | None = None,
+        expected_notified: bool = True,
+    ) -> Self:
+        saved_audits = getattr(self.db, "audit_records", [])
+        assert len(saved_audits) == 1, f"Expected only 1 audit record, got {len(saved_audits)}"
+
+        audit: ScrapeAuditRecord = saved_audits[0]
+
+        assert audit.status == expected_status, (
+            f"Expected audit status: '{expected_status}', got: '{audit.status}'"
+        )
+
+        if audit.chapters_found > 0:
+            assert audit.chapters_found == expected_chapters_found, (
+                f"Expected {expected_chapters_found} chapters found, got {audit.chapters_found}"
+            )
+
+        if audit.chapters_new > 0:
+            assert audit.chapters_new == expected_chapters_new, (
+                f"Expected {expected_chapters_new} chapters new, got {audit.chapters_new}"
+            )
+
+        if audit.error_class is not None:
+            assert audit.error_class == expected_error_class, (
+                f"Expected {expected_error_class}, got {audit.error_class}"
+            )
+
+        if expected_notified:
+            assert audit.notified_at is not None, "Expected notified_at to be set, but got None"
+        else:
+            assert audit.notified_at is None, (
+                f"Expected notified_at to be None, got {audit.notified_at}"
             )
 
         return self

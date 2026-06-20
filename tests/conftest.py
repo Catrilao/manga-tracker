@@ -1,10 +1,10 @@
 from collections.abc import Callable
 from decimal import Decimal
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
-from src.domain.models import Chapter, DBMetadata, Manga, RawChapter, RunContext
+from src.domain.models import Chapter, DBMetadata, Manga, RawChapter, RunContext, Source
 from tests.doubles.notifier import MockNotifier
 from tests.scenarios.plan_scenario import SyncPlanScenario
 from tests.scenarios.sync_scenario import MangaSyncScenario
@@ -33,7 +33,11 @@ def make_manga() -> Callable[..., Manga]:
             "uuid": uuid4(),
             "name": "Test Manga Default",
             "thumbnail": "https://img.manga/default",
-            "url": "https://manga.default",
+            "sources": (
+                Source(
+                    provider_name="mangadex", target_url="https://mangadex.org/", is_active=True
+                ),
+            ),
         }
         defaults.update(kwargs)
         return Manga(**defaults)
@@ -88,7 +92,7 @@ def make_db_metadata() -> Callable[..., DBMetadata]:
 
     def _make(**kwargs) -> DBMetadata:
         defaults = {
-            "manga_id": 00000000 - 0000 - 0000 - 0000 - 000000000000,
+            "manga_id": UUID("00000000-0000-0000-0000-000000000000"),
             "is_cold_start": True,
             "chapter_count": 0,
             "max_chapter_number": None,

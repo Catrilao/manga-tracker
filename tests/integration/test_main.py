@@ -21,7 +21,7 @@ class TestMainCompositionRootSmoke:
         db_url = postgres_container.get_connection_url().replace("+psycopg2", "")
 
         with psycopg.connect(db_url, autocommit=True) as conn:
-            conn.execute("TRUNCATE TABLE tracked_mangas;")
+            conn.execute("TRUNCATE TABLE tracked_mangas CASCADE;")
 
         monkeypatch.setenv("DATABASE_URL", db_url)
         monkeypatch.setenv("DISCORD_WEBHOOK", "http://127.0.0.1:54321/mock-webhook")

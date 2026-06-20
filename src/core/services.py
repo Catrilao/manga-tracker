@@ -1,8 +1,15 @@
 from uuid import UUID
 
-from src.core.ports import ChapterParserPort, DatabasePort, FetchMangaPort, NotifierPort
+from src.core.ports import ChapterParserPort, DatabasePort, NotifierPort
 from src.core.use_cases import calculate_sync_plan
-from src.domain.models import AuditStatus, RunContext, ScrapeAuditRecord, TrackerBaseException
+from src.domain.models import (
+    AuditStatus,
+    RawChapter,
+    RunContext,
+    ScrapeAuditRecord,
+    TrackerBaseException,
+)
+from src.infrastructure.scrapers.factory import ScraperFactory
 from src.logger import execute_log_event, get_logger, manga_log_context
 
 log = get_logger()
@@ -16,32 +23,50 @@ class MangaSyncService:
     def __init__(
         self,
         db_repo: DatabasePort,
-        scraper: FetchMangaPort,
+        scraper_factory: ScraperFactory,
         parser: ChapterParserPort,
         notifier: NotifierPort,
     ) -> None:
         self.db_repo = db_repo
-        self.scraper = scraper
+        self.scraper_factory = scraper_factory
         self.parser = parser
         self.notifier = notifier
 
-    def execute(self, url: str, run_context: RunContext) -> bool:
+    async def execute(self, manga_id: UUID, run_context: RunContext) -> bool:
         """
         Coordinates the side-effects and passes the result
         into the functional core
         """
-        audit = ScrapeAuditRecord(manga_id=UUID(int=0))
+        manga = self.db_repo.get_manga(manga_id)
+        audit = ScrapeAuditRecord(manga_id=manga.uuid, manga_name=manga.name)
 
         try:
-            manga, raw_chapters = self.scraper(url)
-            audit = ScrapeAuditRecord(manga_id=manga.uuid, manga_name=manga.name)
+            raw_chapters: list[RawChapter] = []
+
+            for source in manga.sources:
+                if not source.is_active:
+                    continue
+
+                scraper = self.scraper_factory.get_scraper(source.provider_name)
+
+                try:
+                    chapters = await scraper.fetch_chapters(source.target_url)
+                    raw_chapters.extend(chapters)
+                except TrackerBaseException as e:
+                    log.warning(
+                        "source_scrape_failed",
+                        provider=source.provider_name,
+                        target_url=source.target_url,
+                        error=str(e),
+                    )
+                    continue
+
             audit.chapters_found = len(raw_chapters)
 
-            with manga_log_context(manga.uuid, manga.name, manga.url):
-                parsed_chapters = self.parser(manga.uuid, raw_chapters)
+            with manga_log_context(manga.uuid, manga.name):
+                parsed_chapters = self.parser(manga.uuid, tuple(raw_chapters))
 
                 db_metadata = self.db_repo.get_metadata(manga.uuid)
-
                 plan = calculate_sync_plan(parsed_chapters, db_metadata)
 
                 for event in plan.log_events:

@@ -1,4 +1,7 @@
+import asyncio
 import sys
+
+from playwright.async_api import async_playwright
 
 from src.core.controllers import MangaBatchController
 from src.core.services import MangaSyncService
@@ -6,8 +9,7 @@ from src.domain.models import ConfigurationError
 from src.infrastructure.database.connection import get_db_connection
 from src.infrastructure.database.postgres import PostgresRepository
 from src.infrastructure.notifications.discord import DiscordNotifier
-from src.infrastructure.scrapers.browser import get_browser_context
-from src.infrastructure.scrapers.mangadex import MangadexScraper
+from src.infrastructure.scrapers.factory import ScraperFactory
 from src.infrastructure.scrapers.parser import MangadexChapterParser
 from src.logger import (
     bind_run_context,
@@ -18,7 +20,7 @@ from src.logger import (
 log = get_logger(__name__)
 
 
-def main() -> None:
+async def run_application() -> int:
     configure_logging()
     run_context = bind_run_context()
     log.info("tracker_booting")
@@ -34,29 +36,38 @@ def main() -> None:
     notifier = DiscordNotifier(config.discord_webhook)
 
     try:
-        with (
-            get_db_connection(config.database_url) as db_connection,
-            get_browser_context(config.chromium_executable_path) as browser_context,
-        ):
+        with get_db_connection(config.database_url) as db_connection:
             db_repo = PostgresRepository(db_connection)
-            scraper = MangadexScraper(browser_context)
-            parser = MangadexChapterParser()
 
-            sync_service = MangaSyncService(
-                db_repo=db_repo,
-                scraper=scraper,
-                parser=parser,
-                notifier=notifier,
-            )
+            async with async_playwright() as p:
+                browser = await p.chromium.launch(executable_path=config.chromium_executable_path)
+                context = await browser.new_context()
 
-            controller = MangaBatchController(db_repo, sync_service)
-            exit_code = controller.run_all(run_context)
+                scraper_factory = ScraperFactory(context=context)
+                parser = MangadexChapterParser()
 
+                sync_service = MangaSyncService(
+                    db_repo=db_repo,
+                    scraper_factory=scraper_factory,
+                    parser=parser,
+                    notifier=notifier,
+                )
+
+                controller = MangaBatchController(db_repo=db_repo, sync_service=sync_service)
+                exit_code = await controller.run_all(run_context)
+
+                await context.close()
+                await browser.close()
+
+            return exit_code
     except Exception as e:
         log.critical("infrastructure_initialization_failed", error=str(e))
         notifier.send_error_notification("Fatal: infrastructure failure", 0xC0392B, run_context)
-        sys.exit(1)
+        return 1
 
+
+def main() -> None:
+    exit_code = asyncio.run(run_application())
     sys.exit(exit_code)
 
 

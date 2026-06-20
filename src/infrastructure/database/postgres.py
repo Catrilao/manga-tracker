@@ -14,6 +14,7 @@ from src.domain.models import (
     Manga,
     RunContext,
     ScrapeAuditRecord,
+    Source,
     SyncPlan,
 )
 
@@ -65,14 +66,13 @@ class PostgresRepository:
                 cursor.execute(
                     """
                     INSERT INTO mangas
-                    (id, name, thumbnail, url)
-                    VALUES (%s, %s, %s, %s)
+                    (id, name, thumbnail)
+                    VALUES (%s, %s, %s)
                     ON CONFLICT(id) DO UPDATE
                     SET name = EXCLUDED.name,
-                        thumbnail = EXCLUDED.thumbnail,
-                        url = EXCLUDED.url;
+                        thumbnail = EXCLUDED.thumbnail;
                     """,
-                    (manga.uuid, manga.name, manga.thumbnail, manga.url),
+                    (manga.uuid, manga.name, manga.thumbnail),
                 )
 
                 if plan.chapters_to_insert:
@@ -108,11 +108,44 @@ class PostgresRepository:
         except psycopg.Error as e:
             raise DatabaseError(f"Failed to mark chapters as notified: {str(e)}")
 
-    def get_tracked_urls(self) -> tuple[str, ...]:
+    def get_active_manga_ids(self) -> tuple[UUID, ...]:
         """Retrieves the active manga URLs from the database"""
         with self.conn.cursor() as cursor:
-            cursor.execute("SELECT url FROM tracked_mangas WHERE is_active")
+            cursor.execute("SELECT id FROM mangas WHERE is_active")
             return tuple(row[0] for row in cursor.fetchall())
+
+    def get_manga(self, manga_id: UUID) -> Manga:
+        try:
+            with self.conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT m.id, m.name, m.thumbnail
+                           ms.provider, m.target_url, m.is_active
+                    FROM mangas AS m
+                    LEFT JOIN manga_sources AS ms ON m.id = ms.manga_id
+                    WHERE m.id = %s
+                    """,
+                    (manga_id,),
+                )
+                rows = cursor.fetchall()
+
+            if not rows:
+                raise DatabaseError(f"Manga with ID '{manga_id}' not found")
+
+            m_id = rows[0][0]
+            m_name = rows[0][1] or "Unknown"
+            m_thumbnail = rows[0][2] or ""
+
+            sources = []
+            for row in rows:
+                if row[3]:
+                    sources.append(
+                        Source(provider_name=row[3], target_url=row[4], is_active=row[5])
+                    )
+
+            return Manga(uuid=m_id, name=m_name, thumbnail=m_thumbnail, sources=sources)
+        except psycopg.Error as e:
+            raise DatabaseError(f"Failed to fetch manga: {manga_id}: {str(e)}")
 
     def save_audit_record(self, run_context: RunContext, record: ScrapeAuditRecord) -> None:
         query = """

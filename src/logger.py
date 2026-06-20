@@ -113,14 +113,12 @@ def bind_run_context() -> RunContext:
     )
 
 
-def manga_log_context(
-    manga_id: UUID, manga_name: str, manga_url: str
-) -> AbstractContextManager[None]:
+def manga_log_context(manga_id: UUID, manga_name: str) -> AbstractContextManager[None]:
     """
     A context manager to safely bind and unbind manga-level logs.
 
     Usage in main.py:
-        with manga_log_context(manga.id, manga.name, manga.url):
+        with manga_log_context(manga.id, manga.name):
             fetch_info_chapter(...)
             store_chapter_data(...)
     """
@@ -129,7 +127,6 @@ def manga_log_context(
         structlog.contextvars.bound_contextvars(
             manga_id=str(manga_id),
             manga_name=manga_name,
-            manga_url=manga_url,
         ),
     )
 
@@ -173,7 +170,7 @@ if __name__ == "__main__":  # pragma: no cover
 
     log.info("logger_test", status="ok")
 
-    with manga_log_context(UUID(int=1236), "TesT", "http://url.org"):
+    with manga_log_context(UUID(int=1236), "TesT"):
         log.warning("test_warning", selector=".chapter.relative.read", chapter_found=0)
         log.error("test_error", error_class="DOMChangeError")
 

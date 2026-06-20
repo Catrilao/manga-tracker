@@ -36,6 +36,7 @@
           python312Packages.structlog
           python312Packages.requests
           python312Packages.greenlet
+          supabase-cli
         ];
 
         mkEnv = extraInputs:

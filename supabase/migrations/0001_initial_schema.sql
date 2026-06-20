@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS chapters(
     FOREIGN KEY (manga_id) REFERENCES mangas(id)
 );
 
-CREATE TABLE IF NOT EXISTS  tracked_mangas(
+CREATE TABLE IF NOT EXISTS tracked_mangas(
 url VARCHAR(255) PRIMARY KEY,
 is_active BOOLEAN NOT NULL DEFAULT TRUE,
 added_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -54,5 +54,5 @@ CREATE TABLE IF NOT EXISTS  scrape_runs(
     CONSTRAINT valid_duration CHECK (duration_ms >= 0),
     CONSTRAINT unique_manga_per_run UNIQUE(run_id, manga_id)
 );
-CREATE INDEX idx_scrape_runs_manga_date ON scrape_runs(manga_id, started_at DESC);
-CREATE INDEX idx_scrape_runs_run_id ON scrape_runs(run_id);
+CREATE INDEX IF NOT EXISTS idx_scrape_runs_manga_date ON scrape_runs(manga_id, started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_scrape_runs_run_id ON scrape_runs(run_id);

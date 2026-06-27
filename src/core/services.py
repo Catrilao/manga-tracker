@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from src.core.ports import ChapterParserPort, DatabasePort, NotifierPort
+from src.core.ports import ChapterParserPort, DatabasePort, NotifierPort, ScraperFactoryPort
 from src.core.use_cases import calculate_sync_plan
 from src.domain.models import (
     AuditStatus,
@@ -9,7 +9,6 @@ from src.domain.models import (
     ScrapeAuditRecord,
     TrackerBaseException,
 )
-from src.infrastructure.scrapers.factory import ScraperFactory
 from src.logger import execute_log_event, get_logger, manga_log_context
 
 log = get_logger()
@@ -23,7 +22,7 @@ class MangaSyncService:
     def __init__(
         self,
         db_repo: DatabasePort,
-        scraper_factory: ScraperFactory,
+        scraper_factory: ScraperFactoryPort,
         parser: ChapterParserPort,
         notifier: NotifierPort,
     ) -> None:
@@ -37,11 +36,13 @@ class MangaSyncService:
         Coordinates the side-effects and passes the result
         into the functional core
         """
-        manga = self.db_repo.get_manga(manga_id)
-        audit = ScrapeAuditRecord(manga_id=manga.uuid, manga_name=manga.name)
-
+        audit = ScrapeAuditRecord(manga_id=manga_id, manga_name="Unknown")
         try:
+            manga = self.db_repo.get_manga(manga_id)
+            audit.manga_name = manga.name
+
             raw_chapters: list[RawChapter] = []
+            source_errors = []
 
             for source in manga.sources:
                 if not source.is_active:
@@ -53,6 +54,7 @@ class MangaSyncService:
                     chapters = await scraper.fetch_chapters(source.target_url)
                     raw_chapters.extend(chapters)
                 except TrackerBaseException as e:
+                    source_errors.append(e)
                     log.warning(
                         "source_scrape_failed",
                         provider=source.provider_name,
@@ -60,6 +62,9 @@ class MangaSyncService:
                         error=str(e),
                     )
                     continue
+
+            if source_errors and not raw_chapters:
+                raise source_errors[0]
 
             audit.chapters_found = len(raw_chapters)
 

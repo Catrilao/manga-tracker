@@ -34,6 +34,10 @@ class FetchMangaPort(Protocol):
     async def fetch_chapters(self, target_url: str) -> list[RawChapter]: ...
 
 
+class ScraperFactoryPort(Protocol):
+    def get_scraper(self, provider_name: str) -> FetchMangaPort: ...
+
+
 class ChapterParserPort(Protocol):
     """
     Protocol to transform raw scraped data into domain Chapters

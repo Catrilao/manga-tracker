@@ -1,15 +1,30 @@
 import asyncio
+import os
 from pathlib import Path
 from uuid import UUID
 
 import pytest
-from playwright.async_api import BrowserContext, Route
+import pytest_asyncio
+from playwright.async_api import BrowserContext, Route, async_playwright
 
-import src.infrastructure.scrapers.plugins.mangadex as md_module
+import src.infrastructure.scrapers.plugins.mangadex.scraper as scraper_module
 from src.domain.models import DOMChangeError, NetworkError, ParseError
 from src.infrastructure.scrapers.plugins.mangadex.scraper import MangadexScraper
 
 FIXTURE_PATH = Path(__file__).parent.parent / "fixtures" / "mangadex_sample.html"
+
+
+@pytest_asyncio.fixture()
+async def async_browser_context():
+    async with async_playwright() as p:
+        chromium_path = os.getenv("CHROMIUM_EXECUTABLE_PATH")
+        browser = await p.chromium.launch(executable_path=chromium_path)
+        context = await browser.new_context()
+
+        yield context
+
+        await context.close()
+        await browser.close()
 
 
 @pytest.fixture
@@ -39,8 +54,10 @@ def bypass_async_retry_sleep(monkeypatch: pytest.MonkeyPatch):
 
 
 class TestMangadexScraper:
-    async def test_scraper_raises_parse_error_on_invalid_url(self, context: BrowserContext):
-        scraper = MangadexScraper(context)
+    async def test_scraper_raises_parse_error_on_invalid_url(
+        self, async_browser_context: BrowserContext
+    ):
+        scraper = MangadexScraper(async_browser_context)
         bad_url = "https://mangadex.org/bad-url"
 
         with pytest.raises(ParseError) as exec_info:
@@ -49,37 +66,41 @@ class TestMangadexScraper:
         assert "Could not extract Manga UUID" in str(exec_info.value)
 
     async def test_scraper_raises_network_error_on_connection_failure(
-        self, context: BrowserContext
+        self, async_browser_context: BrowserContext
     ):
-        scraper = MangadexScraper(context)
+        scraper = MangadexScraper(async_browser_context)
         target_url = "https://mangadex.org/title/a96676e5-8ae2-425e-b549-7f15dd34a6d8"
 
         async def handle_route(route: Route):
             await route.abort("connectionrefused")
 
-        await context.route("https://mangadex.org/title/*", handle_route)
+        await async_browser_context.route("https://mangadex.org/title/*", handle_route)
 
         with pytest.raises(NetworkError) as exec_info:
             await scraper.fetch_metadata(target_url)
 
         assert "Network failure" in str(exec_info.value)
 
-    async def test_scraper_raises_network_error_on_timeout(self, context: BrowserContext):
+    async def test_scraper_raises_network_error_on_timeout(
+        self, async_browser_context: BrowserContext
+    ):
         target_url = "https://mangadex.org/title/a96676e5-8ae2-425e-b549-7f15dd34a6d8"
 
-        context.set_default_navigation_timeout(50)
+        async_browser_context.set_default_navigation_timeout(50)
 
         async def handle_route(route):
             del route
             pass
 
-        await context.route("**/*", handle_route)
+        await async_browser_context.route("**/*", handle_route)
 
-        scraper = MangadexScraper(context)
+        scraper = MangadexScraper(async_browser_context)
         with pytest.raises(NetworkError, match="Network timeout"):
             await scraper.fetch_metadata(target_url)
 
-    async def test_scraper_raises_dom_error_on_missing_selector(self, context: BrowserContext):
+    async def test_scraper_raises_dom_error_on_missing_selector(
+        self, async_browser_context: BrowserContext
+    ):
         target_url = "https://mangadex.org/title/a96676e5-8ae2-425e-b549-7f15dd34a6d8"
 
         async def handle_route(route):
@@ -87,27 +108,27 @@ class TestMangadexScraper:
                 status=200, body="<html><body><h1>Cualquier cosa</h1></body></html>"
             )
 
-        await context.route("**/*", handle_route)
+        await async_browser_context.route("**/*", handle_route)
 
-        scraper = MangadexScraper(context)
+        scraper = MangadexScraper(async_browser_context)
         with pytest.raises(DOMChangeError, match="Possible DOM change"):
             await scraper.fetch_metadata(target_url)
 
     async def test_raises_dom_change_error_if_container_missing(
         self,
-        context: BrowserContext,
+        async_browser_context: BrowserContext,
         monkeypatch: pytest.MonkeyPatch,
     ):
-        scraper = MangadexScraper(context)
+        scraper = MangadexScraper(async_browser_context)
         target_url = "https://mangadex.org/title/a96676e5-8ae2-425e-b549-7f15dd34a6d8"
         bad_html = "<html><body><h1>diferente</h1></body></html>"
 
         async def handle_route(route: Route):
             await route.fulfill(status=200, content_type="text/html", body=bad_html)
 
-        await context.route("https://mangadex.org/title/*", handle_route)
+        await async_browser_context.route("https://mangadex.org/title/*", handle_route)
 
-        monkeypatch.setattr(md_module, "PAGE_LOAD_TIMEOUT_MS", 2000)
+        monkeypatch.setattr(scraper_module, "PAGE_LOAD_TIMEOUT_MS", 2000)
 
         with pytest.raises(DOMChangeError) as exec_info:
             await scraper.fetch_metadata(target_url)
@@ -115,9 +136,9 @@ class TestMangadexScraper:
         assert "Manga container CSS missing. Possible DOM change" in str(exec_info.value)
 
     async def test_missing_manga_data_raises_parse_error(
-        self, context: BrowserContext, monkeypatch: pytest.MonkeyPatch
+        self, async_browser_context: BrowserContext, monkeypatch: pytest.MonkeyPatch
     ):
-        scraper = MangadexScraper(context)
+        scraper = MangadexScraper(async_browser_context)
         target_url = "https://mangadex.org/title/a96676e5-8ae2-425e-b549-7f15dd34a6d8"
 
         bad_html = "<html><body><div class='layout-container manga'>Algo</div></body></html>"
@@ -125,9 +146,9 @@ class TestMangadexScraper:
         async def handle_route(route: Route):
             await route.fulfill(status=200, content_type="text/html", body=bad_html)
 
-        await context.route("https://mangadex.org/title/*", handle_route)
+        await async_browser_context.route("https://mangadex.org/title/*", handle_route)
 
-        monkeypatch.setattr(md_module, "PAGE_LOAD_TIMEOUT_MS", 2000)
+        monkeypatch.setattr(scraper_module, "PAGE_LOAD_TIMEOUT_MS", 2000)
 
         with pytest.raises(ParseError) as exec_info:
             await scraper.fetch_metadata(target_url)
@@ -135,9 +156,9 @@ class TestMangadexScraper:
         assert "Could not get manga data" in str(exec_info.value)
 
     async def test_scraper_extracts_metadata_from_valid_html(
-        self, context: BrowserContext, dummy_html: str
+        self, async_browser_context: BrowserContext, dummy_html: str
     ):
-        scraper = MangadexScraper(context)
+        scraper = MangadexScraper(async_browser_context)
         test_uuid = "a96676e5-8ae2-425e-b549-7f15dd34a6d8"
         target_url = f"http://mock.local/title/{test_uuid}/komi-san"
 
@@ -147,7 +168,7 @@ class TestMangadexScraper:
             else:
                 await route.fulfill(status=200, content_type="application/javascript", body="")
 
-        await context.route("**/*", handle_network)
+        await async_browser_context.route("**/*", handle_network)
 
         manga = await scraper.fetch_metadata(target_url)
 
@@ -156,9 +177,9 @@ class TestMangadexScraper:
         assert manga.name != "", "Scraper couldn't extract manga name"
 
     async def test_scraper_extracts_chapters_from_valid_html(
-        self, context: BrowserContext, dummy_html: str
+        self, async_browser_context: BrowserContext, dummy_html: str
     ):
-        scraper = MangadexScraper(context)
+        scraper = MangadexScraper(async_browser_context)
         test_uuid = "a96676e5-8ae2-425e-b549-7f15dd34a6d8"
         target_url = f"http://mock.local/title/{test_uuid}/komi-san"
 
@@ -168,16 +189,16 @@ class TestMangadexScraper:
             else:
                 await route.fulfill(status=200, content_type="application/javascript", body="")
 
-        await context.route("**/*", handle_network)
+        await async_browser_context.route("**/*", handle_network)
 
         raw_chapters = await scraper.fetch_chapters(target_url)
 
         assert len(raw_chapters) > 0, "Scraper couldn't extract manga chapters"
 
     async def test_chapter_load_timeout_returns_zero_chapters(
-        self, context: BrowserContext, monkeypatch: pytest.MonkeyPatch
+        self, async_browser_context: BrowserContext, monkeypatch: pytest.MonkeyPatch
     ):
-        scraper = MangadexScraper(context)
+        scraper = MangadexScraper(async_browser_context)
         target_url = "https://mangadex.org/title/a96676e5-8ae2-425e-b549-7f15dd34a6d8"
 
         soft_fail_html = """
@@ -198,16 +219,16 @@ class TestMangadexScraper:
         async def handle_route(route: Route):
             await route.fulfill(status=200, content_type="text/html", body=soft_fail_html)
 
-        await context.route("https://mangadex.org/title/*", handle_route)
+        await async_browser_context.route("https://mangadex.org/title/*", handle_route)
 
-        monkeypatch.setattr(md_module, "CHAPTER_LOAD_TIMEOUT_MS", 2000)
+        monkeypatch.setattr(scraper_module, "CHAPTER_LOAD_TIMEOUT_MS", 2000)
 
         raw_chapters = await scraper.fetch_chapters(target_url)
 
         assert len(raw_chapters) == 0
 
-    async def test_relative_thumbnail_url_is_resolved(self, context: BrowserContext):
-        scraper = MangadexScraper(context)
+    async def test_relative_thumbnail_url_is_resolved(self, async_browser_context: BrowserContext):
+        scraper = MangadexScraper(async_browser_context)
         target_url = "https://mangadex.org/title/a96676e5-8ae2-425e-b549-7f15dd34a6d8"
 
         relative_thumbnail_html = """
@@ -228,7 +249,7 @@ class TestMangadexScraper:
         async def handle_route(route: Route):
             await route.fulfill(status=200, content_type="text/html", body=relative_thumbnail_html)
 
-        await context.route("https://mangadex.org/title/*", handle_route)
+        await async_browser_context.route("https://mangadex.org/title/*", handle_route)
 
         manga = await scraper.fetch_metadata(target_url)
 

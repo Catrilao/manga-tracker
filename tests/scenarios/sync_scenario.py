@@ -9,7 +9,7 @@ from src.core.services import MangaSyncService
 from src.domain.models import Chapter, ChapterIdentifier, Manga, RawChapter, ScrapeAuditRecord
 from tests.doubles.database import FailingDatabaseStub, FakeDatabase
 from tests.doubles.parser import ConfigurableParserStub, FailingParserStub
-from tests.doubles.scraper import ConfigurableScraperStub, FailingScraperStub
+from tests.doubles.scraper import ConfigurableScraperStub, FailingScraperStub, FakeScraperFactory
 
 
 class MangaSyncScenario:
@@ -79,7 +79,7 @@ class MangaSyncScenario:
         self.parser_error = error
         return self
 
-    def execute(self) -> Self:
+    async def execute(self) -> Self:
         if self.db_error:
             self.db = FailingDatabaseStub(self.db_error)
         else:
@@ -95,12 +95,15 @@ class MangaSyncScenario:
                         ),
                     }
                 )
-            self.db = FakeDatabase(stub_metadata=self.make_db_metadata(**metadata_kwargs))
+            self.db = FakeDatabase(
+                stub_metadata=self.make_db_metadata(**metadata_kwargs),
+                stub_mangas=[self.target_manga],
+            )
 
         self.scraper = (
             FailingScraperStub(self.scraper_error)
             if self.scraper_error
-            else ConfigurableScraperStub(self.target_manga, tuple(self.scraped_chapters))
+            else ConfigurableScraperStub(list(self.scraped_chapters))
         )
 
         self.parser = (
@@ -109,15 +112,17 @@ class MangaSyncScenario:
             else ConfigurableParserStub(tuple(self.parsed_chapters))
         )
 
+        fake_factory = FakeScraperFactory(self.scraper)
+
         service = MangaSyncService(
             db_repo=self.db,
-            scraper=self.scraper,
+            scraper_factory=fake_factory,
             parser=self.parser,
             notifier=self.mock_notifier,
         )
 
         with capture_logs() as cap_logs:
-            self.is_success = service.execute(self.target_manga.url, self.run_context)
+            self.is_success = await service.execute(self.target_manga.uuid, self.run_context)
 
         self.captured_logs = cap_logs
 

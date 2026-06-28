@@ -1,7 +1,14 @@
 import pytest
 
-from src.infrastructure.scrapers.factory import ScraperFactory, register_scraper
+from src.infrastructure.scrapers.factory import _PLUGIN_REGISTRY, ScraperFactory, register_scraper
 from tests.doubles.scraper import ConfigurableScraperStub
+
+
+@pytest.fixture(autouse=True)
+def clean_registry():
+    _PLUGIN_REGISTRY.clear()
+    yield
+    _PLUGIN_REGISTRY.clear()
 
 
 def test_factory_raises_value_error_for_unknown_provider():

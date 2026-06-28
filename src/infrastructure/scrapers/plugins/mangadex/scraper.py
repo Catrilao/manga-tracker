@@ -153,7 +153,14 @@ class MangadexScraper(FetchMangaPort):
                 )
 
                 chapters_list = await page.evaluate(CHAPTER_EXTRACTOR_SCRIPT)
-                raw_chapters_data = [RawChapter(**chapter) for chapter in chapters_list]
+
+                raw_chapters_data = []
+                for chapter_dict in chapters_list:
+                    href = chapter_dict.get("href", "")
+                    if href and not href.startswith("https"):
+                        chapter_dict["href"] = urljoin(target_url, href)
+
+                    raw_chapters_data.append(RawChapter(**chapter_dict))
 
                 logger.debug("scraper_raw_chapters_extracted", count=len(raw_chapters_data))
             except PlaywrightTimeoutError:

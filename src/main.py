@@ -9,8 +9,9 @@ from src.domain.models import ConfigurationError
 from src.infrastructure.database.connection import get_db_connection
 from src.infrastructure.database.postgres import PostgresRepository
 from src.infrastructure.notifications.discord import DiscordNotifier
+from src.infrastructure.scrapers import plugins  # noqa: F401
 from src.infrastructure.scrapers.factory import ScraperFactory
-from src.infrastructure.scrapers.parser import MangadexChapterParser
+from src.infrastructure.scrapers.parser import GenericParser
 from src.logger import (
     bind_run_context,
     configure_logging,
@@ -44,7 +45,7 @@ async def run_application() -> int:
                 context = await browser.new_context()
 
                 scraper_factory = ScraperFactory(context=context)
-                parser = MangadexChapterParser()
+                parser = GenericParser()
 
                 sync_service = MangaSyncService(
                     db_repo=db_repo,

@@ -110,17 +110,20 @@ class PostgresRepository:
 
     def get_active_manga_ids(self) -> tuple[UUID, ...]:
         """Retrieves the active manga URLs from the database"""
-        with self.conn.cursor() as cursor:
-            cursor.execute("SELECT id FROM mangas WHERE is_active")
-            return tuple(row[0] for row in cursor.fetchall())
+        try:
+            with self.conn.cursor() as cursor:
+                cursor.execute("SELECT id FROM mangas WHERE is_active")
+                return tuple(row[0] for row in cursor.fetchall())
+        except psycopg.Error:
+            raise DatabaseError("Failed to fetch active manga IDs")
 
     def get_manga(self, manga_id: UUID) -> Manga:
         try:
             with self.conn.cursor() as cursor:
                 cursor.execute(
                     """
-                    SELECT m.id, m.name, m.thumbnail
-                           ms.provider, m.target_url, m.is_active
+                    SELECT m.id, m.name, m.thumbnail,
+                           ms.provider_name, ms.target_url, ms.is_active
                     FROM mangas AS m
                     LEFT JOIN manga_sources AS ms ON m.id = ms.manga_id
                     WHERE m.id = %s

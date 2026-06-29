@@ -56,7 +56,7 @@ class Manga:
     uuid: UUID
     name: str
     thumbnail: str
-    sources: list[Source]
+    sources: tuple[Source, ...]
 
 
 @dataclass(frozen=True)

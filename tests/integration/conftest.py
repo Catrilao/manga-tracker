@@ -23,7 +23,7 @@ def init_database(postgres_container: PostgresContainer) -> None:
     migrations_files = sorted(migrations_dir.glob("*.sql"))
 
     if not migrations_files:
-        raise FileNotFoundError(f"No files founded in ${migrations_dir}")
+        raise FileNotFoundError(f"No files founded in {migrations_dir}")
 
     for migration_path in migrations_files:
         with open(migration_path, encoding="utf-8") as f:

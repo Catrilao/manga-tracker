@@ -255,7 +255,7 @@ def test_repository_translates_psycopg_errors_to_domain_errors(
     chapter = make_chapter()
 
     def mock_execute(*args, **kwargs):
-        raise psycopg.OperationalError("Simulated DB explotion")
+        raise psycopg.OperationalError("Simulated DB explosion")
 
     monkeypatch.setattr(psycopg.Cursor, "execute", mock_execute)
     monkeypatch.setattr(psycopg.Cursor, "executemany", mock_execute)

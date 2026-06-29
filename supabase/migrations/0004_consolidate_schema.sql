@@ -9,10 +9,8 @@ DROP INDEX IF EXISTS idx_manga_sources_manga_id;
 
 ALTER TABLE manga_sources
 DROP CONSTRAINT manga_sources_pkey,
-DROP CONSTRAINT fk_manga;
-
-
-ALTER TABLE manga_sources
+DROP CONSTRAINT fk_manga,
+ADD CONSTRAINT manga_sources_pkey PRIMARY KEY (manga_id, provider_name),
 ADD CONSTRAINT fk_manga_sources_mangas
 FOREIGN KEY(manga_id) REFERENCES mangas(id) ON DELETE CASCADE;
 

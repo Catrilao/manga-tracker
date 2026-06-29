@@ -74,6 +74,7 @@ async def _intercept_route(route: Route) -> None:
 @register_scraper("mangadex")
 class MangadexScraper(FetchMangaPort):
     def __init__(self, context: BrowserContext, **kwargs: Any) -> None:
+        del kwargs
         self.context = context
 
     @property
@@ -123,7 +124,7 @@ class MangadexScraper(FetchMangaPort):
 
             current_source = Source(provider_name=self.provider_name, target_url=target_url)
 
-            manga = Manga(manga_id, manga_name, thumbnail, sources=[current_source])
+            manga = Manga(manga_id, manga_name, thumbnail, sources=(current_source,))
 
             logger.info(
                 "scraper_manga_data_extracted",

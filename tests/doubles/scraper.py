@@ -3,8 +3,8 @@ from src.infrastructure.scrapers.factory import ScraperFactory
 
 
 class ConfigurableScraperStub:
-    def __init__(self, raw_chapters_to_return: list[RawChapter] = []):
-        self.raw_chapters = raw_chapters_to_return
+    def __init__(self, raw_chapters_to_return: list[RawChapter] | None = None):
+        self.raw_chapters = [] if raw_chapters_to_return is None else raw_chapters_to_return
 
     @property
     def provider_name(self) -> str:

@@ -44,21 +44,22 @@ async def run_application() -> int:
                 browser = await p.chromium.launch(executable_path=config.chromium_executable_path)
                 context = await browser.new_context()
 
-                scraper_factory = ScraperFactory(context=context)
-                parser = GenericParser()
+                try:
+                    scraper_factory = ScraperFactory(context=context)
+                    parser = GenericParser()
 
-                sync_service = MangaSyncService(
-                    db_repo=db_repo,
-                    scraper_factory=scraper_factory,
-                    parser=parser,
-                    notifier=notifier,
-                )
+                    sync_service = MangaSyncService(
+                        db_repo=db_repo,
+                        scraper_factory=scraper_factory,
+                        parser=parser,
+                        notifier=notifier,
+                    )
 
-                controller = MangaBatchController(db_repo=db_repo, sync_service=sync_service)
-                exit_code = await controller.run_all(run_context)
-
-                await context.close()
-                await browser.close()
+                    controller = MangaBatchController(db_repo=db_repo, sync_service=sync_service)
+                    exit_code = await controller.run_all(run_context)
+                finally:
+                    await context.close()
+                    await browser.close()
 
             return exit_code
     except Exception as e:

@@ -50,10 +50,11 @@ class TestMainCompositionRootSmoke:
         monkeypatch.setenv("CHROMIUM_EXECUTABLE_PATH", "mock")
         monkeypatch.setenv("TRACKER_ENV", "test")
 
-        with patch("src.main.async_playwright"):
-            mock_context_manager = AsyncMock()
+        with patch("src.main.async_playwright") as mock_async_playwright:
+            mock_cm = AsyncMock()
             mock_p = AsyncMock()
-            mock_context_manager.__aenter__.return_value = mock_p
+            mock_cm.__aenter__.return_value = mock_p
+            mock_async_playwright.return_value = mock_cm
 
             mock_browser = AsyncMock()
             mock_p.chromium.launch.return_value = mock_browser

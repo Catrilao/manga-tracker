@@ -74,6 +74,19 @@ HTTP_MATRIX_SCENARIOS = [
         ),
         id="server_error_max_retries_exceeded",
     ),
+    pytest.param(
+        HttpScenarioCase(
+            response_setup=[
+                {"status": 429, "json": {"retry_after": 0.1}},
+                {"status": 429, "json": {"retry_after": 0.1}},
+                {"status": 429, "json": {"retry_after": 0.1}},
+            ],
+            expected_result=False,
+            expected_calls=3,
+            expected_log="discord_notification_failed",
+        ),
+        id="rate_limit_max_retries_exceeded",
+    ),
 ]
 
 

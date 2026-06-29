@@ -29,4 +29,4 @@ class ScraperFactory:
         if not scraper_class:
             raise ValueError(f"There's no registered plugin for the provider: '{provider_name}'")
 
-        return scraper_class(**self._dependencies)
+        return scraper_class(**self._dependencies)  # Line 32

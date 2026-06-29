@@ -28,7 +28,7 @@ def get_db_connection(database_url: str) -> Generator[psycopg.Connection, None, 
         log.info("postgres_connection_established")
         yield connection
     finally:
-        if connection and not connection.closed:
+        if connection and not connection.closed:  # Line 31
             try:
                 connection.close()
                 log.debug("postgres_connection_closed")

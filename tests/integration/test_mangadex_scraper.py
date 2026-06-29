@@ -1,11 +1,13 @@
 import asyncio
 import os
 from pathlib import Path
+from unittest.mock import AsyncMock
 from uuid import UUID
 
 import pytest
 import pytest_asyncio
 from playwright.async_api import BrowserContext, Route, async_playwright
+from playwright.async_api import Error as PlaywrightError
 
 import src.infrastructure.scrapers.plugins.mangadex.scraper as scraper_module
 from src.domain.models import DOMChangeError, NetworkError, ParseError
@@ -155,6 +157,54 @@ class TestMangadexScraper:
 
         assert "Could not get manga data" in str(exec_info.value)
 
+    async def test_fetch_metadata_raises_dom_error_on_playwright_failure(
+        self, async_browser_context: BrowserContext, monkeypatch: pytest.MonkeyPatch
+    ):
+        scraper = MangadexScraper(async_browser_context)
+        target_url = "https://mangadex.org/title/a96676e5-8ae2-425e-b549-7f15dd34a6d8"
+
+        mock_page = AsyncMock()
+        mock_page.wait_for_selector.side_effect = PlaywrightError("Generic Playwright DOM Error")
+
+        monkeypatch.setattr(async_browser_context, "new_page", AsyncMock(return_value=mock_page))
+
+        with pytest.raises(
+            DOMChangeError, match="Playwright DOM interaction failed: Generic Playwright DOM Error"
+        ):
+            await scraper.fetch_metadata(target_url)
+
+    async def test_fetch_chapters_raises_network_error_on_playwright_timeout(
+        self, async_browser_context: BrowserContext, monkeypatch: pytest.MonkeyPatch
+    ):
+        from playwright.async_api import TimeoutError as PlaywrightTimeoutError
+
+        scraper = MangadexScraper(async_browser_context)
+        target_url = "https://mangadex.org/title/a96676e5-8ae2-425e-b549-7f15dd34a6d8"
+
+        mock_page = AsyncMock()
+        mock_page.goto.side_effect = PlaywrightTimeoutError("Navigation time exceeded")
+
+        monkeypatch.setattr(async_browser_context, "new_page", AsyncMock(return_value=mock_page))
+
+        with pytest.raises(NetworkError, match=f"Network timeout reaching: {target_url}"):
+            await scraper.fetch_chapters(target_url)
+
+    async def test_fetch_chapters_raises_network_error_on_generic_playwright_error(
+        self, async_browser_context: BrowserContext, monkeypatch: pytest.MonkeyPatch
+    ):
+        scraper = MangadexScraper(async_browser_context)
+        target_url = "https://mangadex.org/title/a96676e5-8ae2-425e-b549-7f15dd34a6d8"
+
+        mock_page = AsyncMock()
+        mock_page.goto.side_effect = PlaywrightError("net::ERR_NAME_NOT_RESOLVED")
+
+        monkeypatch.setattr(async_browser_context, "new_page", AsyncMock(return_value=mock_page))
+
+        with pytest.raises(
+            NetworkError, match="Network failure \\(DNS/Connection\\): net::ERR_NAME_NOT_RESOLVED"
+        ):
+            await scraper.fetch_chapters(target_url)
+
     async def test_scraper_extracts_metadata_from_valid_html(
         self, async_browser_context: BrowserContext, dummy_html: str
     ):
@@ -254,3 +304,45 @@ class TestMangadexScraper:
         manga = await scraper.fetch_metadata(target_url)
 
         assert manga.thumbnail == "https://mangadex.org/cover.jpg"
+
+    async def test_absolute_thumbnail_url(self, async_browser_context: BrowserContext):
+        scraper = MangadexScraper(async_browser_context)
+        target_url = "https://mangadex.org/title/a96676e5-8ae2-425e-b549-7f15dd34a6d8"
+
+        relative_thumbnail_html = """
+        <html>
+            <body>
+                <div class="layout-container manga">
+                    <div class="title">
+                        <p>Fake Manga</p>
+                    </div>
+                    <div style='grid-area: art'>
+                        <img alt='Cover image' src='https://mangadex.org/cover.jpg'>
+                    </div>
+                </div>
+            </body>
+        </html>
+        """
+
+        async def handle_route(route: Route):
+            await route.fulfill(status=200, content_type="text/html", body=relative_thumbnail_html)
+
+        await async_browser_context.route("https://mangadex.org/title/*", handle_route)
+
+        manga = await scraper.fetch_metadata(target_url)
+
+        assert manga.thumbnail == "https://mangadex.org/cover.jpg"
+
+    async def test_chapter_relative_href_is_resolved(self):
+        mock_context = AsyncMock()
+        scraper = MangadexScraper(mock_context)
+
+        mock_page = AsyncMock()
+        mock_page.evaluate.return_value = [
+            {"info_text": "1", "header_text": "", "href": "/ruta-relativa", "language_title": "en"}
+        ]
+        mock_context.new_page.return_value = mock_page
+
+        chapters = await scraper.fetch_chapters("https://mangadex.org/title/dummy")
+
+        assert chapters[0].href == "https://mangadex.org/ruta-relativa"

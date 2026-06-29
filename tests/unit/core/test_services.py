@@ -10,6 +10,7 @@ from src.domain.models import (
     ParseError,
     Severity,
 )
+from tests.scenarios.sync_scenario import MangaSyncScenario
 
 
 @pytest.mark.asyncio
@@ -230,3 +231,46 @@ async def test_sync_service_captures_parser_errors(case: SyncErrorCase, sync_sce
             expected_error_class=case.simulated_error.__class__.__name__,
         )
     )
+
+
+@pytest.mark.asyncio
+async def test_service_skips_inactive_sources(
+    run_context, mock_notifier, make_manga, make_raw_chapter, make_chapter, make_db_metadata
+):
+    scenario = MangaSyncScenario(
+        run_context, mock_notifier, make_manga, make_raw_chapter, make_chapter, make_db_metadata
+    )
+
+    await scenario.source_is_inactive().execute()
+
+    scenario.assert_success(False)
+    scenario.assert_audit_saved(expected_status="failed", expected_error_class="DOMChangeError")
+
+
+@pytest.mark.asyncio
+async def test_service_executes_log_events(
+    run_context, mock_notifier, make_manga, make_raw_chapter, make_chapter, make_db_metadata
+):
+    scenario = MangaSyncScenario(
+        run_context, mock_notifier, make_manga, make_raw_chapter, make_chapter, make_db_metadata
+    )
+
+    scenario.existing_series_with_chapters("1")
+    scenario.scraper_returns_chapters("2", "3", "4", "5", "6", "7", "8")  # 7 capítulos nuevos
+
+    await scenario.execute()
+    scenario.assert_success()
+    scenario.assert_logging("notification_spam_prevented", "warning")
+
+
+@pytest.mark.asyncio
+async def test_service_handles_audit_save_failure(
+    run_context, mock_notifier, make_manga, make_raw_chapter, make_chapter, make_db_metadata
+):
+    scenario = MangaSyncScenario(
+        run_context, mock_notifier, make_manga, make_raw_chapter, make_chapter, make_db_metadata
+    )
+
+    await scenario.scraper_returns_chapters("1").database_fails_on_audit_save().execute()
+
+    scenario.assert_logging("save_audit_failed", "error")

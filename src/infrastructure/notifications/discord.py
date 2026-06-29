@@ -61,9 +61,9 @@ class DiscordNotifier:
                         attempt=attempt + 1,
                         sleep_seconds=retry_after,
                     )
-                    if attempt < max_retries - 1:
-                        time.sleep(retry_after)
-                    continue
+                    if attempt < max_retries - 1:  # Line 64
+                        time.sleep(retry_after)  # Line 65
+                    continue  # Line 66
 
                 # Server errors
                 if response.status_code in {500, 502, 503, 504}:

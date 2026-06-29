@@ -222,6 +222,22 @@ def test_repository_early_returns_and_empty_plans(db_connection, make_manga):
     repository.mark_as_notified(())
 
 
+def test_manga_has_no_sources_in_database(db_connection, make_manga):
+    repository = PostgresRepository(db_connection)
+    target_manga = make_manga()
+
+    with db_connection.transaction(), db_connection.cursor() as cursor:
+        cursor.execute(
+            "INSERT INTO mangas (id, name, thumbnail) VALUES (%s, %s, %s);",
+            (target_manga.uuid, target_manga.name, target_manga.thumbnail),
+        )
+
+    response = repository.get_manga(target_manga.uuid)
+
+    assert response is not None
+    assert len(response.sources) == 0
+
+
 @pytest.mark.parametrize(
     "method_name, get_args, expected_match",
     [

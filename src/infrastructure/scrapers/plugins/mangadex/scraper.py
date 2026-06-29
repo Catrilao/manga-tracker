@@ -57,7 +57,7 @@ def async_retry(retries: int = 3, delay: float = 2.0) -> Callable[[F], F]:
                     )
                     await asyncio.sleep(wait_time)
 
-            raise RuntimeError("Unreachable")
+            raise RuntimeError("Unreachable")  # pragma: no cover
 
         return cast(F, wrapper)
 
@@ -121,7 +121,6 @@ class MangadexScraper(FetchMangaPort):
 
             if thumbnail and not thumbnail.startswith("https"):
                 thumbnail = urljoin(target_url, thumbnail)
-
             current_source = Source(provider_name=self.provider_name, target_url=target_url)
 
             manga = Manga(manga_id, manga_name, thumbnail, sources=(current_source,))
@@ -159,7 +158,7 @@ class MangadexScraper(FetchMangaPort):
                 for chapter_dict in chapters_list:
                     href = chapter_dict.get("href", "")
                     if href and not href.startswith("https"):
-                        chapter_dict["href"] = urljoin(target_url, href)
+                        chapter_dict["href"] = urljoin(target_url, href)  # Line 161
 
                     raw_chapters_data.append(RawChapter(**chapter_dict))
 

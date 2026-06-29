@@ -31,3 +31,14 @@ def test_audit_record_truncates_massive_skipped_details():
     assert len(record.metadata["skipped_details"]) == 50
     assert record.metadata["skipped_details_truncated"] is True
     assert record.metadata["skipped_details_total_count"] == 100
+
+
+def test_audit_record_register_skipped_details():
+    record = ScrapeAuditRecord(UUID(int=1))
+
+    record.metadata["skipped_details"] = ["Error"]
+    record.mark_finished(AuditStatus.SUCCESS)
+
+    assert len(record.metadata["skipped_details"]) == 1
+    assert "skipped_details_truncated" not in record.metadata
+    assert "skipped_details_total_count" not in record.metadata

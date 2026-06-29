@@ -38,6 +38,7 @@ class MangaSyncScenario:
         self.db_error = None
         self.scraper_error = None
         self.parser_error = None
+        self.db_error_on_audit = False
 
         self.is_success = None
         self.db = None
@@ -100,6 +101,13 @@ class MangaSyncScenario:
                 stub_mangas=[self.target_manga],
             )
 
+        if self.db_error_on_audit:
+
+            def mock_save(*args, **kwargs):
+                raise Exception("Simulated Audit Save Crash")
+
+            self.db.save_audit_record = mock_save
+
         self.scraper = (
             FailingScraperStub(self.scraper_error)
             if self.scraper_error
@@ -126,6 +134,20 @@ class MangaSyncScenario:
 
         self.captured_logs = cap_logs
 
+        return self
+
+    def source_is_inactive(self) -> Self:
+        import dataclasses
+
+        inactive_sources = tuple(
+            dataclasses.replace(s, is_active=False) for s in self.target_manga.sources
+        )
+        self.target_manga = dataclasses.replace(self.target_manga, sources=inactive_sources)
+
+        return self
+
+    def database_fails_on_audit_save(self) -> Self:
+        self.db_error_on_audit = True
         return self
 
     def assert_success(self, expected: bool = True) -> Self:

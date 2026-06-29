@@ -11,6 +11,22 @@ def clean_registry():
     _PLUGIN_REGISTRY.clear()
 
 
+def test_factory_returns_instantiated_scraper():
+    provider_name = "happy_path_provider"
+
+    class DummyScraper(ConfigurableScraperStub):
+        def __init__(self, context=None):
+            self.context = context
+
+    register_scraper(provider_name)(DummyScraper)
+
+    factory = ScraperFactory(context="mocked_browser_context")
+    scraper = factory.get_scraper("happy_path_provider")
+
+    assert isinstance(scraper, DummyScraper)
+    assert scraper.context == "mocked_browser_context"
+
+
 def test_factory_raises_value_error_for_unknown_provider():
     factory = ScraperFactory(context=None)
 

@@ -1,4 +1,5 @@
-from src.domain.models import DOMChangeError, ParseError
+from src.domain.models import DatabaseError, DOMChangeError, ParseError
+from tests.scenarios.plan_scenario import SyncPlanScenario
 
 
 class TestsSyncPlanGuards:
@@ -69,4 +70,20 @@ class TestSyncPlanBusinessRules:
             .assert_inserts("101", "102", "103", "104", "105", "106")
             .assert_notifies("106", "105", "104", "103", "102")  # Top 5
             .assert_warnings_logged("notification_spam_prevented")
+        )
+
+    def test_plan_raises_db_error_if_max_number_is_missing(self, make_chapter, make_db_metadata):
+        scenario = SyncPlanScenario(make_chapter, make_db_metadata)
+
+        scenario.db_kwargs.update({"is_cold_start": False, "max_chapter_number": None})
+
+        scenario.calculate().assert_error_raised(
+            DatabaseError, "'max_number_db' is None but not cold start"
+        )
+
+    def test_plan_raises_dom_change_error_if_empty_scraper(self, make_chapter, make_db_metadata):
+        scenario = SyncPlanScenario(make_chapter, make_db_metadata)
+
+        scenario.calculate().assert_error_raised(
+            DOMChangeError, "Scraper returned zero chapters. Possible DOM change"
         )

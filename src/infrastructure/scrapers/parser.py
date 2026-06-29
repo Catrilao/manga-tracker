@@ -1,5 +1,5 @@
 import re
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from uuid import UUID
 
 from src.domain.models import Chapter, ParseError, RawChapter
@@ -41,10 +41,7 @@ class GenericParser:
                     re.IGNORECASE,
                 )
                 if num_match:
-                    try:
-                        number = Decimal(num_match.group(1))
-                    except InvalidOperation:
-                        pass
+                    number = Decimal(num_match.group(1))
 
             if number == Decimal("-1.0"):
                 num_match = re.search(
@@ -53,10 +50,7 @@ class GenericParser:
                     re.IGNORECASE,
                 )
                 if num_match:
-                    try:
-                        number = Decimal(num_match.group(1))
-                    except InvalidOperation:
-                        pass
+                    number = Decimal(num_match.group(1))
 
             name_match = re.search(
                 r"(Ch\.|chapter)\s*\d+(?:\.\d+)?\s*-\s*(.+)",

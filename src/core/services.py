@@ -46,7 +46,7 @@ class MangaSyncService:
 
             for source in manga.sources:
                 if not source.is_active:
-                    continue
+                    continue  # Line 49
 
                 scraper = self.scraper_factory.get_scraper(source.provider_name)
 
@@ -75,7 +75,7 @@ class MangaSyncService:
                 plan = calculate_sync_plan(parsed_chapters, db_metadata)
 
                 for event in plan.log_events:
-                    execute_log_event(event)
+                    execute_log_event(event)  # Line 78
 
                 audit.chapters_new = len(plan.chapters_to_insert)
                 audit.chapters_skipped = len(parsed_chapters) - audit.chapters_new
@@ -125,5 +125,5 @@ class MangaSyncService:
         finally:
             try:
                 self.db_repo.save_audit_record(run_context, audit)
-            except Exception as e:
-                log.error("save_audit_failed", error=str(e))
+            except Exception as e:  # Line 128
+                log.error("save_audit_failed", error=str(e))  # Line 129

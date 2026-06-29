@@ -30,7 +30,7 @@ def calculate_sync_plan(
 
     if not db_state.is_cold_start:
         if db_state.max_chapter_number is None:
-            raise DatabaseError("'max_number_db' is None but not cold start")
+            raise DatabaseError("'max_number_db' is None but not cold start")  # Line 33
 
         if scraped_chapters and len(scraped_chapters) < db_state.chapter_count * 0.5:
             raise DOMChangeError("Found less than 50% of chapters than before")
@@ -87,7 +87,7 @@ def calculate_sync_plan(
         valid_chapters.append(chapter)
 
     if not scraped_chapters:
-        raise DOMChangeError("Scraper returned zero chapters. Possible DOM change")
+        raise DOMChangeError("Scraper returned zero chapters. Possible DOM change")  # Line 90
     null_ratio = null_count_scraper / len(scraped_chapters)
     if null_ratio >= 0.3:
         raise ParseError(f"High volume (>=30%) of null chapters ({null_count_scraper} chapters)")

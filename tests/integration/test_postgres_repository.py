@@ -1,4 +1,6 @@
+from collections.abc import Callable
 from decimal import Decimal
+from uuid import uuid4
 
 import psycopg
 import pytest
@@ -165,3 +167,101 @@ def test_repository_saves_and_updates_audit_record(db_connection, make_manga):
         assert row is not None
         assert row[0] == "success"
         assert row[1] == 15
+
+
+def test_get_manga_updates_sources_correctly(db_connection, make_manga):
+    repository = PostgresRepository(db_connection)
+    target_manga = make_manga(name="Varias Fuentes")
+
+    with db_connection.transaction(), db_connection.cursor() as cursor:
+        cursor.execute(
+            "INSERT INTO mangas (id, name, thumbnail) VALUES (%s, %s, %s);",
+            (target_manga.uuid, target_manga.name, target_manga.thumbnail),
+        )
+        cursor.execute(
+            """
+            INSERT INTO manga_sources (manga_id, provider_name, target_url, is_active)
+            VALUES
+                (%s, 'mangadex', 'https://mangadex.org/', TRUE),
+                (%s, 'tmo', 'https://tmo.com/', TRUE);
+            """,
+            (target_manga.uuid, target_manga.uuid),
+        )
+
+    fetched_manga = repository.get_manga(target_manga.uuid)
+
+    assert fetched_manga.uuid == target_manga.uuid
+    assert fetched_manga.name == "Varias Fuentes"
+    assert len(fetched_manga.sources) == 2
+
+    tmo_source = fetched_manga.sources[0]
+    assert tmo_source.provider_name == "mangadex"
+    assert tmo_source.target_url == "https://mangadex.org/"
+    assert tmo_source.is_active is True
+
+    tmo_source = fetched_manga.sources[1]
+    assert tmo_source.provider_name == "tmo"
+    assert tmo_source.target_url == "https://tmo.com/"
+    assert tmo_source.is_active is True
+
+
+def test_get_manga_raises_database_error_if_not_found(db_connection):
+    repository = PostgresRepository(db_connection)
+
+    with pytest.raises(DatabaseError, match="not found"):
+        repository.get_manga(uuid4())
+
+
+def test_repository_early_returns_and_empty_plans(db_connection, make_manga):
+    repository = PostgresRepository(db_connection)
+    target_manga = make_manga()
+
+    empty_plan = SyncPlan(chapters_to_insert=(), chapters_to_notify=(), log_events=())
+    repository.store_chapters(manga=target_manga, plan=empty_plan)
+
+    repository.mark_as_notified(())
+
+
+@pytest.mark.parametrize(
+    "method_name, get_args, expected_match",
+    [
+        ("get_metadata", lambda manga, chapter: (manga.uuid,), "Failed to fetch metadata"),
+        ("get_manga", lambda manga, chapter: (manga.uuid,), "Failed to fetch manga"),
+        (
+            "mark_as_notified",
+            lambda manga, chapter: ((chapter,),),
+            "Failed to mark chapters as notified",
+        ),
+        ("get_active_manga_ids", lambda manga, chapter: (), "Failed to fetch active manga IDs"),
+    ],
+    ids=[
+        "get_metadata",
+        "get_manga",
+        "mark_as_notified",
+        "get_active_manga_ids",
+    ],
+)
+def test_repository_translates_psycopg_errors_to_domain_errors(
+    method_name: str,
+    get_args: Callable,
+    expected_match: str,
+    db_connection,
+    make_manga,
+    make_chapter,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    repository = PostgresRepository(db_connection)
+    target_manga = make_manga()
+    chapter = make_chapter()
+
+    def mock_execute(*args, **kwargs):
+        raise psycopg.OperationalError("Simulated DB explosion")
+
+    monkeypatch.setattr(psycopg.Cursor, "execute", mock_execute)
+    monkeypatch.setattr(psycopg.Cursor, "executemany", mock_execute)
+
+    method_to_call = getattr(repository, method_name)
+    args = get_args(target_manga, chapter)
+
+    with pytest.raises(DatabaseError, match=expected_match):
+        method_to_call(*args)

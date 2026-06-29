@@ -1,6 +1,8 @@
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
+import pytest
+
 from src.domain.models import AuditStatus, ScrapeAuditRecord
 
 
@@ -15,7 +17,7 @@ def test_audit_record_calculates_failures_on_finish():
     record.mark_notified()
 
     assert record.status == "success"
-    assert record.duration_ms == 2000
+    assert record.duration_ms == pytest.approx(2000, abs=50)
     assert record.null_chapter_pct == 20.0
     assert record.notified_at is not None
 

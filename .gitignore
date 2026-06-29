@@ -21,3 +21,6 @@ logs/
 .coverage.*
 coverage.xml
 htmlcov/
+
+supabase/.temp/
+supabase/.branches/

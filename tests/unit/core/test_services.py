@@ -12,11 +12,11 @@ from src.domain.models import (
 )
 
 
-def test_sync_service_skips_notifications_on_cold_start(sync_scenario):
+@pytest.mark.asyncio
+async def test_sync_service_skips_notifications_on_cold_start(sync_scenario):
+    scenario = await sync_scenario.scraper_returns_chapters("1", "2").execute()
     (
-        sync_scenario.scraper_returns_chapters("1", "2")
-        .execute()
-        .assert_success()
+        scenario.assert_success()
         .assert_no_notifications()
         .assert_plans_stored(1)
         .assert_logging("manga_sync_completed", "info", new_chapters=2)
@@ -29,12 +29,15 @@ def test_sync_service_skips_notifications_on_cold_start(sync_scenario):
     )
 
 
-def test_sync_service_send_notifications_when_not_cold_start(sync_scenario):
-    (
-        sync_scenario.existing_series_with_chapters("1", "2")
+@pytest.mark.asyncio
+async def test_sync_service_send_notifications_when_not_cold_start(sync_scenario):
+    scenario = (
+        await sync_scenario.existing_series_with_chapters("1", "2")
         .scraper_returns_chapters("3", "4")
         .execute()
-        .assert_success()
+    )
+    (
+        scenario.assert_success()
         .assert_plans_stored(1)
         .assert_notified_about("3", "4")
         .assert_marked_as_notified("3", "4")
@@ -48,12 +51,15 @@ def test_sync_service_send_notifications_when_not_cold_start(sync_scenario):
     )
 
 
-def test_sync_service_does_not_notify_if_no_new_chapters(sync_scenario):
-    (
-        sync_scenario.existing_series_with_chapters("1", "2")
+@pytest.mark.asyncio
+async def test_sync_service_does_not_notify_if_no_new_chapters(sync_scenario):
+    scenario = (
+        await sync_scenario.existing_series_with_chapters("1", "2")
         .scraper_returns_chapters("1", "2")
         .execute()
-        .assert_success()
+    )
+    (
+        scenario.assert_success()
         .assert_plans_stored(0)
         .assert_no_notifications()
         .assert_logging("manga_sync_completed", "info", new_chapters=0)
@@ -66,13 +72,16 @@ def test_sync_service_does_not_notify_if_no_new_chapters(sync_scenario):
     )
 
 
-def test_sync_service_handles_partial_notifications_failure(sync_scenario):
-    (
-        sync_scenario.existing_series_with_chapters("1", "2")
+@pytest.mark.asyncio
+async def test_sync_service_handles_partial_notifications_failure(sync_scenario):
+    scenario = (
+        await sync_scenario.existing_series_with_chapters("1", "2")
         .scraper_returns_chapters("3", "4")
         .notification_fails_for("3")
         .execute()
-        .assert_success()
+    )
+    (
+        scenario.assert_success()
         .assert_plans_stored(1)
         .assert_notified_about("4")
         .assert_marked_as_notified("4")
@@ -87,11 +96,11 @@ def test_sync_service_handles_partial_notifications_failure(sync_scenario):
     )
 
 
-def test_sync_service_notifies_database_error(sync_scenario):
+@pytest.mark.asyncio
+async def test_sync_service_notifies_database_error(sync_scenario):
+    scenario = await sync_scenario.database_fails_with(DatabaseError()).execute()
     (
-        sync_scenario.database_fails_with(DatabaseError())
-        .execute()
-        .assert_success(False)
+        scenario.assert_success(False)
         .assert_error_notified("Database fetch/logic error", Severity.CRITICAL.value)
         .assert_logging("manga_sync_failed", "error", error_class="DatabaseError")
         .assert_audit_saved(
@@ -149,15 +158,17 @@ FAILURE_SCRAPER_SYNC_SCENARIOS = [
 ]
 
 
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "case",
     FAILURE_SCRAPER_SYNC_SCENARIOS,
 )
-def test_sync_service_captures_and_notifies_scraper_errors(case: SyncErrorCase, sync_scenario):
+async def test_sync_service_captures_and_notifies_scraper_errors(
+    case: SyncErrorCase, sync_scenario
+):
+    scenario = await sync_scenario.scraper_fails_with(case.simulated_error).execute()
     (
-        sync_scenario.scraper_fails_with(case.simulated_error)
-        .execute()
-        .assert_success(False)
+        scenario.assert_success(False)
         .assert_error_notified(case.expected_message, case.expected_color)
         .assert_no_side_effects()
         .assert_logging(
@@ -198,15 +209,15 @@ PARSER_FAILURE_SYNC_SCENARIOS = [
 ]
 
 
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "case",
     PARSER_FAILURE_SYNC_SCENARIOS,
 )
-def test_sync_service_captures_parser_errors(case: SyncErrorCase, sync_scenario):
+async def test_sync_service_captures_parser_errors(case: SyncErrorCase, sync_scenario):
+    scenario = await sync_scenario.parser_fails_with(case.simulated_error).execute()
     (
-        sync_scenario.parser_fails_with(case.simulated_error)
-        .execute()
-        .assert_success(False)
+        scenario.assert_success(False)
         .assert_error_notified(case.expected_message, case.expected_color)
         .assert_no_side_effects()
         .assert_logging(

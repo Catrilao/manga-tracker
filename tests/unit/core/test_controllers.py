@@ -1,18 +1,23 @@
 from dataclasses import dataclass
 from typing import Any
 from unittest.mock import sentinel
+from uuid import UUID
 
 import pytest
 from structlog.testing import capture_logs
 
 from src.core.controllers import MangaBatchController
+from src.domain.models import Manga
 from tests.doubles.database import FakeDatabase
 from tests.doubles.service import FakeSyncService
+
+MANGA_1 = Manga(uuid=UUID(int=1), name="Manga 1", thumbnail="", sources=[])
+MANGA_2 = Manga(uuid=UUID(int=2), name="Manga 2", thumbnail="", sources=[])
 
 
 @dataclass(frozen=True)
 class BatchExecutionCase:
-    tracked_urls: tuple[str, ...]
+    stub_mangas: list[Manga]
     service_results: list[bool]
     expected_exit: int
     expected_success: int
@@ -25,12 +30,12 @@ class BatchExecutionCase:
 SCENARIOS = [
     pytest.param(
         BatchExecutionCase(
-            tracked_urls=(),
+            stub_mangas=[],
             service_results=[],
             expected_exit=0,
             expected_success=0,
             expected_failure=0,
-            expected_log_msg="no_urls_found_in_database",
+            expected_log_msg="no_active_mangas_found_in_database",
             expected_log_level="warning",
             expected_log_kwargs={},
         ),
@@ -38,7 +43,7 @@ SCENARIOS = [
     ),
     pytest.param(
         BatchExecutionCase(
-            tracked_urls=("url1", "url2"),
+            stub_mangas=[MANGA_1, MANGA_2],
             service_results=[True, True],
             expected_exit=0,
             expected_success=2,
@@ -51,7 +56,7 @@ SCENARIOS = [
     ),
     pytest.param(
         BatchExecutionCase(
-            tracked_urls=("url1", "url2"),
+            stub_mangas=[MANGA_1, MANGA_2],
             service_results=[False, True],
             expected_exit=1,
             expected_success=1,
@@ -64,7 +69,7 @@ SCENARIOS = [
     ),
     pytest.param(
         BatchExecutionCase(
-            tracked_urls=("url1", "url2"),
+            stub_mangas=[MANGA_1, MANGA_2],
             service_results=[False, False],
             expected_exit=1,
             expected_success=0,
@@ -79,19 +84,19 @@ SCENARIOS = [
 
 
 @pytest.mark.parametrize("case", SCENARIOS)
-def test_manga_batch_controller_scenarios(
+async def test_manga_batch_controller_scenarios(
     case: BatchExecutionCase,
     run_context,
 ):
-    db_stub = FakeDatabase(stub_metadata=sentinel.METADATA, tracked_urls=case.tracked_urls)
+    db_stub = FakeDatabase(stub_metadata=sentinel.METADATA, stub_mangas=case.stub_mangas)
     service_stub = FakeSyncService(case.service_results)
     controller = MangaBatchController(db_repo=db_stub, sync_service=service_stub)
 
     with capture_logs() as cap_logs:
-        exit_code = controller.run_all(run_context)
+        exit_code = await controller.run_all(run_context)
 
     assert exit_code == case.expected_exit
-    assert service_stub.calls_made == len(case.tracked_urls)
+    assert service_stub.calls_made == len(case.stub_mangas)
     assert service_stub.succeeded_calls == case.expected_success
     assert service_stub.failed_calls == case.expected_failure
 

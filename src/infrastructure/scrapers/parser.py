@@ -1,6 +1,5 @@
 import re
 from decimal import Decimal, InvalidOperation
-from urllib.parse import urljoin
 from uuid import UUID
 
 from src.domain.models import Chapter, ParseError, RawChapter
@@ -9,10 +8,12 @@ from src.logger import get_logger
 logger = get_logger(__name__)
 
 
-class MangadexChapterParser:
+class GenericParser:
     """
     Fulfills the ChapterParserPort.
     Transforms raw, unvalidated strings from the JS evaluation into strict Domain Models.
+
+    Designed to work with different scanlation sources.
 
     CONTRACT: This function is an objective observer. It intentionally
     does NOT filter out chapters with missing links, missing languages,
@@ -25,7 +26,6 @@ class MangadexChapterParser:
         self,
         manga_id: UUID,
         raw_chapters: tuple[RawChapter, ...],
-        base_url: str = "https://mangadex.org",
     ) -> tuple[Chapter, ...]:
         logger.info("parsing_raw_chapters_started", target_manga_id=str(manga_id))
 
@@ -66,33 +66,29 @@ class MangadexChapterParser:
             if name_match:
                 name = name_match.group(2).strip()
 
-            chapter_link = raw.href
-            if chapter_link and not chapter_link.startswith("https"):
-                chapter_link = urljoin(base_url, chapter_link)
+            if number == Decimal("-1.0"):
+                logger.warning(
+                    "chapter_number_parse_failed",
+                    manga_id=str(manga_id),
+                    raw_header=raw.header_text,
+                    raw_info=raw.info_text,
+                )
 
             logger.debug(
                 "chapter_parsed",
                 manga_id=str(manga_id),
                 number=str(number),
                 name=name,
-                link=chapter_link,
+                link=raw.href,
                 language=raw.language_title,
             )
-
-            if not chapter_link or number == Decimal("-1.0"):
-                logger.warning(
-                    "empty_chapter_info",
-                    manga_id=str(manga_id),
-                    chapter_name=name or "Unknown",
-                    has_link=bool(chapter_link),
-                )
 
             try:
                 chapter = Chapter(
                     manga_id=manga_id,
                     number=number,
                     name=name,
-                    link=chapter_link,
+                    link=raw.href,
                     language=raw.language_title,
                 )
                 parsed_chapters.append(chapter)

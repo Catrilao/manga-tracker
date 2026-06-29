@@ -45,11 +45,18 @@ class RawChapter:
 
 
 @dataclass(frozen=True)
+class Source:
+    provider_name: str
+    target_url: str
+    is_active: bool = True
+
+
+@dataclass(frozen=True)
 class Manga:
     uuid: UUID
     name: str
     thumbnail: str
-    url: str
+    sources: tuple[Source, ...]
 
 
 @dataclass(frozen=True)

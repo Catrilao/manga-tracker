@@ -15,17 +15,17 @@ class MangaBatchController:
         self.db_repo = db_repo
         self.sync_service = sync_service
 
-    def run_all(self, run_context: RunContext) -> int:
-        target_urls = self.db_repo.get_tracked_urls()
-        if not target_urls:
-            log.warning("no_urls_found_in_database")
+    async def run_all(self, run_context: RunContext) -> int:
+        target_ids = self.db_repo.get_active_manga_ids()
+        if not target_ids:
+            log.warning("no_active_mangas_found_in_database")
             return 0
 
         mangas_attempted = 0
         mangas_succeeded = 0
-        for url in target_urls:
+        for id in target_ids:
             mangas_attempted += 1
-            is_success = self.sync_service.execute(url, run_context)
+            is_success = await self.sync_service.execute(id, run_context)
             if is_success:
                 mangas_succeeded += 1
 

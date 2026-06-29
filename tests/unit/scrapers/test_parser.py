@@ -6,12 +6,12 @@ from uuid import uuid4
 import pytest
 
 from src.domain.models import ParseError
-from src.infrastructure.scrapers.parser import MangadexChapterParser
+from src.infrastructure.scrapers.parser import GenericParser
 
 
 @pytest.fixture
 def parser():
-    return MangadexChapterParser()
+    return GenericParser()
 
 
 @pytest.fixture
@@ -112,14 +112,18 @@ EXTRACTION_SCENARIOS = [
 ]
 
 
-class TestMangadexChapterParserExtraction:
+class TestGenericChapterParserExtraction:
     """Tests the core regex and text parsing engine."""
 
     @pytest.mark.parametrize("case", EXTRACTION_SCENARIOS)
     def test_regex_extraction_matrix(
         self, parser, manga_id, make_raw_chapter, case: ExtractionCase
     ):
-        raw_chapter = make_raw_chapter(header_text=case.header_text, info_text=case.info_text)
+        raw_chapter = make_raw_chapter(
+            header_text=case.header_text,
+            info_text=case.info_text,
+            href="https://mangadex.org/chapter/valid",
+        )
 
         result = parser(manga_id, (raw_chapter,))
 
@@ -131,9 +135,17 @@ class TestMangadexChapterParserExtraction:
 
     def test_parses_multiple_chapters_simultaneously(self, parser, manga_id, make_raw_chapter):
         raw_chapters = (
-            make_raw_chapter(header_text="1", info_text="Ch. 1 - Start", language_title="English"),
             make_raw_chapter(
-                header_text="2", info_text="Ch. 2 - Continúa", language_title="Spanish"
+                header_text="1",
+                info_text="Ch. 1 - Start",
+                language_title="English",
+                href="https://mangadex.org/chapter/valid",
+            ),
+            make_raw_chapter(
+                header_text="3",
+                info_text="Ch. 2 - Continúa",
+                language_title="Spanish",
+                href="https://mangadex.org/chapter/valid",
             ),
         )
 
@@ -144,35 +156,32 @@ class TestMangadexChapterParserExtraction:
         assert result[1].number == Decimal("2")
 
 
-class TestMangadexChapterParserLinks:
+class TestGenericChapterParserLinks:
     """Tests URL resolution and formatting."""
 
-    def test_resolves_relative_chapter_links(self, parser, manga_id, make_raw_chapter):
+    def test_preserves_relative_chapter_links(self, parser, manga_id, make_raw_chapter):
         raw = make_raw_chapter(href="/chapter/rel-path")
         result = parser(manga_id, (raw,))
-        assert result[0].link == "https://mangadex.org/chapter/rel-path"
+        assert len(result) == 1
+        assert result[0].link == "/chapter/rel-path"
 
     def test_preserves_absolute_chapter_links(self, parser, manga_id, make_raw_chapter):
         raw = make_raw_chapter(href="https://custom.com/ch/abc")
         result = parser(manga_id, (raw,))
         assert result[0].link == "https://custom.com/ch/abc"
 
-    def test_custom_base_url(self, parser, manga_id, make_raw_chapter):
-        raw = make_raw_chapter(href="/chapter/123")
-        result = parser(manga_id, (raw,), base_url="https://example.org")
-        assert result[0].link == "https://example.org/chapter/123"
-
-    def test_empty_href_preserved_as_empty_string(self, parser, manga_id, make_raw_chapter):
+    def test_preserves_empty_href(self, parser, manga_id, make_raw_chapter):
         raw = make_raw_chapter(href="")
         result = parser(manga_id, (raw,))
+        assert len(result) == 1
         assert result[0].link == ""
 
 
-class TestMangadexChapterParserEdgeCases:
+class TestGenericChapterParserEdgeCases:
     """Tests structural edge cases and error handling."""
 
     def test_empty_language_preserved(self, parser, manga_id, make_raw_chapter):
-        raw = make_raw_chapter(language_title="")
+        raw = make_raw_chapter(language_title="", href="https://valid.url")
         result = parser(manga_id, (raw,))
         assert result[0].language == ""
 
@@ -190,7 +199,7 @@ class TestMangadexChapterParserEdgeCases:
             def __str__(self):
                 raise ValueError("I cannot be a string")
 
-        raw = make_raw_chapter(language_title=InvalidStringObject())
+        raw = make_raw_chapter(language_title=InvalidStringObject(), href="https://valid.url")
 
         with patch(
             "src.infrastructure.scrapers.parser.Chapter", side_effect=ValueError("Invalid data")

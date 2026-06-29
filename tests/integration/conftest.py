@@ -17,20 +17,22 @@ def postgres_container() -> Generator[PostgresContainer, None, None]:
 
 @pytest.fixture(scope="module")
 def init_database(postgres_container: PostgresContainer) -> None:
-    raw_url = postgres_container.get_connection_url()
-    db_url = raw_url.replace("+psycopg2", "")
+    db_url = postgres_container.get_connection_url().replace("+psycopg2", "")
 
-    schema_path = (
-        Path(__file__).parent.parent.parent / "src" / "infrastructure" / "database" / "schema.sql"
-    )
+    migrations_dir = Path(__file__).parent.parent.parent / "supabase" / "migrations"
+    migrations_files = sorted(migrations_dir.glob("*.sql"))
 
-    with open(schema_path, encoding="utf-8") as f:
-        schema_sql = f.read()
+    if not migrations_files:
+        raise FileNotFoundError(f"No files founded in {migrations_dir}")
 
-    with psycopg.connect(db_url) as conn:
-        with conn.cursor() as cursor:
-            cursor.execute(schema_sql)  # type: ignore[arg-type]
-        conn.commit()
+    for migration_path in migrations_files:
+        with open(migration_path, encoding="utf-8") as f:
+            schema_sql = f.read()
+
+        with psycopg.connect(db_url) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(schema_sql)  # type: ignore[arg-type]
+            conn.commit()
 
 
 @pytest.fixture(scope="function")
@@ -43,11 +45,6 @@ def db_connection(
 
     with get_db_connection(db_url) as conn:
         yield conn
-
-        with conn.cursor() as cursor:
-            cursor.execute(
-                "TRUNCATE TABLE chapters, mangas, tracked_mangas RESTART IDENTITY CASCADE;"
-            )
 
 
 @pytest.fixture(scope="session")

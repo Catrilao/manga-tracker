@@ -1,4 +1,5 @@
 from collections.abc import Iterator
+from uuid import UUID
 
 from src.domain.models import RunContext
 
@@ -17,8 +18,8 @@ class FakeSyncService:
         self.succeeded_calls = 0
         self.failed_calls = 0
 
-    def execute(self, url: str, run_context: RunContext) -> bool:
-        del url
+    async def execute(self, manga_id: UUID, run_context: RunContext) -> bool:
+        del manga_id
         del run_context
         self.calls_made += 1
 

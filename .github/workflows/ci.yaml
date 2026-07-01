@@ -9,7 +9,7 @@ on:
       - "pyproject.toml"
       - "uv.lock"
       - ".github/workflows/ci.yaml"
-      - ".github/workflows/dependabot-uv-lock.yaml"
+      - ".github/workflows/sync-uv-lock.yaml"
       - "flake.nix"
       - "flake.lock"
 
@@ -23,9 +23,25 @@ on:
       - "flake.nix"
       - "flake.lock"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash -euo pipefail {0}
+
 jobs:
   quality-checks:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TRACKER_ENV: test
+      DATABASE_URL: postgresql://mock:mock@localhost:5432/mock
+      DISCORD_WEBHOOK: https://discord.com/api/webhooks/mock/mock
 
     steps:
       - name: Checkout code
@@ -33,6 +49,9 @@ jobs:
 
       - name: Install Nix
         uses: determinatesystems/nix-installer-action@v22
+
+      - name: Magic Nix Cache
+        uses: determinatesystems/magic-nix-cache-action@v14
 
       - name: Cache uv
         uses: actions/cache@v6
@@ -42,15 +61,13 @@ jobs:
           restore-keys: |
             ${{ github.os }}-uv-
 
-      - name: Run CI
-        run: nix develop .#ci --command bash -lc "
-          uv sync &&
-          uv run ruff check . &&
-          uv run ruff format --check &&
-          uv run mypy src &&
-          uv run pytest -n auto
-          "
-        env:
-          TRACKER_ENV: test
-          DATABASE_URL: postgresql://mock:mock@localhost:5432/mock
-          DISCORD_WEBHOOK: https://discord.com/api/webhooks/mock/mock
+      - name: Lint
+        run: |
+          nix develop .#ci --command \
+          uv run pre-commit run --all-files
+
+      - name: Test
+        if: "!cancelled()"
+        run: |
+          nix develop .#ci --command \
+          uv run pytest -n logical

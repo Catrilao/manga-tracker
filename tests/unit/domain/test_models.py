@@ -42,3 +42,34 @@ def test_audit_record_register_skipped_details():
     assert len(record.metadata["skipped_details"]) == 1
     assert "skipped_details_truncated" not in record.metadata
     assert "skipped_details_total_count" not in record.metadata
+
+
+def test_audit_record_post_init_preserves_existing_metadata():
+    existing_meta = {
+        "source_errors": {"mock_provider": "error"},
+        "log_events": [{"event": "mock"}],
+    }
+
+    record = ScrapeAuditRecord(manga_id=UUID(int=1), metadata=existing_meta)
+
+    assert record.metadata["source_errors"] == {"mock_provider": "error"}
+    assert record.metadata["log_events"] == [{"event": "mock"}]
+
+
+def test_audit_record_scraper_failure_preserves_existing_error_class():
+    record = ScrapeAuditRecord(manga_id=UUID(int=1), error_class="CriticalCrash")
+
+    record.record_scraper_failure("mangadex", "timeout", 408)
+
+    assert record.metadata["source_errors"]["mangadex"]["error"] == "timeout"
+    assert record.metadata["source_errors"]["mangadex"]["status_code"] == 408
+    assert record.error_class == "CriticalCrash"
+
+
+def test_audit_record_mark_finished_partial_failure():
+    record = ScrapeAuditRecord(UUID(int=1))
+
+    record.record_scraper_failure("mangadex", "timeout")
+    record.mark_finished(AuditStatus.SUCCESS)
+
+    assert record.error_class == "PartialFailure"

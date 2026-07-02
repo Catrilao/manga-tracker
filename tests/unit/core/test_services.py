@@ -274,3 +274,15 @@ async def test_service_handles_audit_save_failure(
     await scenario.scraper_returns_chapters("1").database_fails_on_audit_save().execute()
 
     scenario.assert_logging("save_audit_failed", "error")
+
+
+async def test_manga_sync_network_error_outside_scraper(sync_scenario: MangaSyncScenario):
+    error = NetworkError("DB connection timeout")
+    error.status_code = 504
+
+    scenario = await sync_scenario.database_fails_with(error).execute()
+    (
+        scenario.assert_success(False).assert_audit_saved(
+            expected_status=AuditStatus.TIMEOUT.value, expected_error_class="NetworkError"
+        )
+    )

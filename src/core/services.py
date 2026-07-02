@@ -114,8 +114,9 @@ class MangaSyncService:
             audit.error_class = type(e).__name__
             audit.error_message = str(e)
 
-            if e.status_code and not audit.http_status_code:
-                audit.http_status_code = e.status_code
+            status_code = getattr(e, "status_code", None)
+            if status_code and not audit.http_status_code:
+                audit.http_status_code = status_code
 
             audit.mark_finished(e.audit_status)
 

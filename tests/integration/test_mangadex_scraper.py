@@ -273,9 +273,11 @@ class TestMangadexScraper:
 
         monkeypatch.setattr(scraper_module, "CHAPTER_LOAD_TIMEOUT_MS", 2000)
 
-        raw_chapters = await scraper.fetch_chapters(target_url)
-
-        assert len(raw_chapters) == 0
+        with pytest.raises(
+            DOMChangeError,
+            match="Scraper returned zero chapters. Posible DOM change or extreme lag",
+        ):
+            await scraper.fetch_chapters(target_url)
 
     async def test_relative_thumbnail_url_is_resolved(self, async_browser_context: BrowserContext):
         scraper = MangadexScraper(async_browser_context)
@@ -346,3 +348,37 @@ class TestMangadexScraper:
         chapters = await scraper.fetch_chapters("https://mangadex.org/title/dummy")
 
         assert chapters[0].href == "https://mangadex.org/ruta-relativa"
+
+    async def test_fetch_metadata_raises_network_error_on_http_failure(
+        self, async_browser_context: BrowserContext
+    ):
+        scraper = MangadexScraper(async_browser_context)
+        target_url = "https://mangadex.org/title/a96676e5-8ae2-425e-b549-7f15dd34a6d8"
+
+        async def handle_route(route: Route):
+            await route.fulfill(status=502, body="Bad Getaway")
+
+        await async_browser_context.route("**/*", handle_route)
+
+        with pytest.raises(NetworkError) as exec_info:
+            await scraper.fetch_metadata(target_url)
+
+        assert "HTTP status 502" in str(exec_info.value)
+        assert exec_info.value.status_code == 502
+
+    async def test_fetch_chaters_raises_network_error_on_http_failure(
+        self, async_browser_context: BrowserContext
+    ):
+        scraper = MangadexScraper(async_browser_context)
+        target_url = "https://mangadex.org/title/a96676e5-8ae2-425e-b549-7f15dd34a6d8"
+
+        async def handle_route(route: Route):
+            await route.fulfill(status=403, body="Forbidden")
+
+        await async_browser_context.route("**/*", handle_route)
+
+        with pytest.raises(NetworkError) as exec_info:
+            await scraper.fetch_chapters(target_url)
+
+        assert "HTTP status 403" in str(exec_info.value)
+        assert exec_info.value.status_code == 403

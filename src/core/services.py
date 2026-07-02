@@ -46,7 +46,7 @@ class MangaSyncService:
 
             for source in manga.sources:
                 if not source.is_active:
-                    continue  # Line 49
+                    continue
 
                 scraper = self.scraper_factory.get_scraper(source.provider_name)
 
@@ -55,6 +55,10 @@ class MangaSyncService:
                     raw_chapters.extend(chapters)
                 except TrackerBaseException as e:
                     source_errors.append(e)
+
+                    status_code = getattr(e, "status_code", None)
+                    audit.record_scraper_failure(source.provider_name, str(e), status_code)
+
                     log.warning(
                         "source_scrape_failed",
                         provider=source.provider_name,
@@ -62,6 +66,8 @@ class MangaSyncService:
                         error=str(e),
                     )
                     continue
+
+            audit.chapters_found = len(raw_chapters)
 
             if source_errors and not raw_chapters:
                 raise source_errors[0]
@@ -71,11 +77,15 @@ class MangaSyncService:
             with manga_log_context(manga.uuid, manga.name):
                 parsed_chapters = self.parser(manga.uuid, tuple(raw_chapters))
 
+                audit.metadata["raw_count"] = len(raw_chapters)
+                audit.metadata["parsed_count"] = len(parsed_chapters)
+
                 db_metadata = self.db_repo.get_metadata(manga.uuid)
                 plan = calculate_sync_plan(parsed_chapters, db_metadata)
 
                 for event in plan.log_events:
-                    execute_log_event(event)  # Line 78
+                    execute_log_event(event)
+                    audit.record_log_event(event.event_name, event.context)
 
                 audit.chapters_new = len(plan.chapters_to_insert)
                 audit.chapters_skipped = len(parsed_chapters) - audit.chapters_new
@@ -103,6 +113,10 @@ class MangaSyncService:
 
             audit.error_class = type(e).__name__
             audit.error_message = str(e)
+
+            if e.status_code and not audit.http_status_code:
+                audit.http_status_code = e.status_code
+
             audit.mark_finished(e.audit_status)
 
             self.notifier.send_error_notification(str(e), e.color_code, run_context)
@@ -125,5 +139,5 @@ class MangaSyncService:
         finally:
             try:
                 self.db_repo.save_audit_record(run_context, audit)
-            except Exception as e:  # Line 128
-                log.error("save_audit_failed", error=str(e))  # Line 129
+            except Exception as e:
+                log.error("save_audit_failed", error=str(e))

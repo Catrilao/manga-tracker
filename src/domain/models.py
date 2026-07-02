@@ -86,13 +86,45 @@ class ScrapeAuditRecord:
     metadata: dict[str, Any] = field(default_factory=dict)
     notified_at: datetime | None = None
 
+    def __post_init__(self) -> None:
+        if "source_errors" not in self.metadata:
+            self.metadata["source_errors"] = {}
+        if "log_events" not in self.metadata:
+            self.metadata["log_events"] = []
+
+    def record_scraper_failure(
+        self,
+        provider: str,
+        error: str,
+        status_code: int | None = None,
+    ) -> None:
+        self.metadata["source_errors"][provider] = {
+            "error": error,
+            "status_code": status_code,
+        }
+        if not self.error_class:
+            self.error_class = "PartialFailure"
+
+    def record_log_event(self, event_name: str, context: Mapping[str, Any]) -> None:
+        serializable_context = {k: str(v) for k, v in context.items()}
+        self.metadata["log_events"].append(
+            {
+                "event": event_name,
+                "context": serializable_context,
+                "timestamp": datetime.now(UTC).isoformat(),
+            }
+        )
+
     def mark_finished(self, status: AuditStatus, max_skipped_details: int = 50) -> None:
         self.status = status.value
         self.finished_at = datetime.now(UTC)
         self.duration_ms = int((self.finished_at - self.started_at).total_seconds() * 1000)
 
-        if self.status == AuditStatus.SUCCESS and self.chapters_found > 0:
+        if self.chapters_found > 0:
             self.null_chapter_pct = round((self.chapters_skipped / self.chapters_found) * 100, 2)
+
+        if self.metadata.get("source_errors") and self.status == AuditStatus.SUCCESS.value:
+            self.error_class = "PartialFailure"
 
         if "skipped_details" in self.metadata:
             details = self.metadata["skipped_details"]
@@ -151,8 +183,9 @@ class TrackerBaseException(Exception):
     severity: Severity = Severity.ERROR
     audit_status: AuditStatus = AuditStatus.FAILED
 
-    def __init__(self, message: str) -> None:
+    def __init__(self, message: str, status_code: int | None = None) -> None:
         super().__init__(message)
+        self.status_code = status_code
 
     @property
     def color_code(self) -> int:
@@ -204,5 +237,6 @@ class ParseError(ScraperBaseException):
 class NetworkError(ScraperBaseException):
     audit_status = AuditStatus.TIMEOUT
 
-    def __init__(self, message: str = "Network error") -> None:
+    def __init__(self, message: str = "Network error", status_code: int | None = None) -> None:
         super().__init__(message)
+        self.status_code = status_code

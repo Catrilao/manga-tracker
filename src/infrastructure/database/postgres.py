@@ -155,19 +155,20 @@ class PostgresRepository:
         query = """
            INSERT INTO scrape_runs (
                 run_id, gh_run_id, git_commit,
-                finished_at, duration_ms,
+                started_at, finished_at, duration_ms,
                 manga_id, manga_name,
                 chapters_found, chapters_new, chapters_skipped, null_chapter_pct,
                 status, http_status_code, error_class, error_message,
                 metadata, notified_at
             ) VALUES (
                 %s, %s, %s,
-                %s, %s,
+                %s, %s, %s,
                 %s, %s,
                 %s, %s, %s, %s,
                 %s, %s, %s, %s,
                 %s, %s
             ) ON CONFLICT (run_id, manga_id) DO UPDATE SET
+                started_at = EXCLUDED.started_at,
                 finished_at = EXCLUDED.finished_at,
                 duration_ms = EXCLUDED.duration_ms,
                 chapters_found = EXCLUDED.chapters_found,
@@ -189,6 +190,7 @@ class PostgresRepository:
                     run_context.run_id,
                     run_context.gh_run_id,
                     run_context.git_commit,
+                    record.started_at,
                     record.finished_at,
                     record.duration_ms,
                     record.manga_id,

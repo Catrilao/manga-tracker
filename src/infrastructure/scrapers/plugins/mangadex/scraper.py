@@ -45,7 +45,7 @@ def async_retry(retries: int = 3, delay: float = 2.0) -> Callable[[F], F]:
             for attempt in range(1, retries + 1):
                 try:
                     return await func(*args, **kwargs)
-                except (NetworkError, PlaywrightTimeoutError) as e:
+                except NetworkError as e:
                     if attempt == retries:
                         logger.error(f"Failed operation after {retries} retries", error=str(e))
                         raise
@@ -96,11 +96,24 @@ class MangadexScraper(FetchMangaPort):
             await page.route("**/*", _intercept_route)
 
             try:
-                await page.goto(target_url, wait_until="domcontentloaded")
+                response = await page.goto(target_url, wait_until="domcontentloaded")
+
+                if response is not None and not response.ok:
+                    raise NetworkError(
+                        f"HTTP status {response.status} reaching {target_url}",
+                        status_code=response.status,
+                    )
+
             except PlaywrightTimeoutError as e:
-                raise NetworkError(f"Network timeout reaching: {target_url}") from e
+                raise NetworkError(
+                    f"Network timeout reaching: {target_url}",
+                    status_code=408,
+                ) from e
             except PlaywrightError as e:
-                raise NetworkError(f"Network failure (DNS/Connection): {str(e)}") from e
+                raise NetworkError(
+                    f"Network failure (DNS/Connection): {str(e)}",
+                    status_code=0,
+                ) from e
 
             try:
                 await page.wait_for_selector(
@@ -141,11 +154,24 @@ class MangadexScraper(FetchMangaPort):
         try:
             await page.route("**/*", _intercept_route)
             try:
-                await page.goto(target_url, wait_until="domcontentloaded")
+                response = await page.goto(target_url, wait_until="domcontentloaded")
+
+                if response is not None and not response.ok:
+                    raise NetworkError(
+                        f"HTTP status {response.status} reaching {target_url}",
+                        status_code=response.status,
+                    )
+
             except PlaywrightTimeoutError as e:
-                raise NetworkError(f"Network timeout reaching: {target_url}") from e
+                raise NetworkError(
+                    f"Network timeout reaching: {target_url}",
+                    status_code=408,
+                ) from e
             except PlaywrightError as e:
-                raise NetworkError(f"Network failure (DNS/Connection): {str(e)}") from e
+                raise NetworkError(
+                    f"Network failure (DNS/Connection): {str(e)}",
+                    status_code=0,
+                ) from e
 
             try:
                 await page.wait_for_selector(
@@ -158,14 +184,15 @@ class MangadexScraper(FetchMangaPort):
                 for chapter_dict in chapters_list:
                     href = chapter_dict.get("href", "")
                     if href and not href.startswith("https"):
-                        chapter_dict["href"] = urljoin(target_url, href)  # Line 161
+                        chapter_dict["href"] = urljoin(target_url, href)
 
                     raw_chapters_data.append(RawChapter(**chapter_dict))
 
                 logger.debug("scraper_raw_chapters_extracted", count=len(raw_chapters_data))
-            except PlaywrightTimeoutError:
-                raw_chapters_data = []
-                logger.warning("scraper_zero_chapters_found", url=target_url)
+            except PlaywrightTimeoutError as e:
+                raise DOMChangeError(
+                    "Scraper returned zero chapters. Posible DOM change or extreme lag"
+                ) from e
 
             return raw_chapters_data
         finally:

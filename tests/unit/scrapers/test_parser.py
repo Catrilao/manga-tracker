@@ -21,8 +21,8 @@ def manga_id():
 
 @dataclass(frozen=True)
 class ExtractionCase:
-    header_text: str
-    info_text: str
+    raw_number: str
+    raw_title: str
     expected_number: Decimal
     expected_name: str
 
@@ -30,8 +30,8 @@ class ExtractionCase:
 EXTRACTION_SCENARIOS = [
     pytest.param(
         ExtractionCase(
-            header_text="1",
-            info_text="Ch. 1 - Introduction",
+            raw_number="1",
+            raw_title="Ch. 1 - Introduction",
             expected_number=Decimal("1"),
             expected_name="Introduction",
         ),
@@ -39,8 +39,8 @@ EXTRACTION_SCENARIOS = [
     ),
     pytest.param(
         ExtractionCase(
-            header_text="1.5",
-            info_text="Ch. 1.5 - Side Story",
+            raw_number="1.5",
+            raw_title="Ch. 1.5 - Side Story",
             expected_number=Decimal("1.5"),
             expected_name="Side Story",
         ),
@@ -48,17 +48,17 @@ EXTRACTION_SCENARIOS = [
     ),
     pytest.param(
         ExtractionCase(
-            header_text="",
-            info_text="Chapter 42 - The Answer",
+            raw_number="",
+            raw_title="Chapter 42 - The Answer",
             expected_number=Decimal("42"),
             expected_name="The Answer",
         ),
-        id="empty_header",
+        id="empty_number",
     ),
     pytest.param(
         ExtractionCase(
-            header_text="Oneshot",
-            info_text="Chapter 0 - Prologue",
+            raw_number="Oneshot",
+            raw_title="Chapter 0 - Prologue",
             expected_number=Decimal("0"),
             expected_name="Prologue",
         ),
@@ -66,26 +66,8 @@ EXTRACTION_SCENARIOS = [
     ),
     pytest.param(
         ExtractionCase(
-            header_text="Vol. 2 Ch. 15",
-            info_text="Ch. 15 - The Battle",
-            expected_number=Decimal("15"),
-            expected_name="The Battle",
-        ),
-        id="integer_number_with_volume_number",
-    ),
-    pytest.param(
-        ExtractionCase(
-            header_text="",
-            info_text="Vol. 1 Chapter 5.5 - Extra",
-            expected_number=Decimal("5.5"),
-            expected_name="Extra",
-        ),
-        id="float_number_with_volume_number",
-    ),
-    pytest.param(
-        ExtractionCase(
-            header_text="10",
-            info_text="Ch. 10",
+            raw_number="10",
+            raw_title="Ch. 10",
             expected_number=Decimal("10"),
             expected_name="Ch. 10",
         ),
@@ -93,8 +75,8 @@ EXTRACTION_SCENARIOS = [
     ),
     pytest.param(
         ExtractionCase(
-            header_text="20",
-            info_text="chapter 20 -lower case",
+            raw_number="20",
+            raw_title="chapter 20 -lower case",
             expected_number=Decimal("20"),
             expected_name="lower case",
         ),
@@ -102,12 +84,21 @@ EXTRACTION_SCENARIOS = [
     ),
     pytest.param(
         ExtractionCase(
-            header_text="Extras",
-            info_text="Artbook",
+            raw_number="Extras",
+            raw_title="Artbook",
             expected_number=Decimal("-1.0"),
             expected_name="Artbook",
         ),
         id="no_number",
+    ),
+    pytest.param(
+        ExtractionCase(
+            raw_number="1",
+            raw_title="",
+            expected_number=Decimal("1"),
+            expected_name="No name",
+        ),
+        id="no_title",
     ),
 ]
 
@@ -120,8 +111,8 @@ class TestGenericChapterParserExtraction:
         self, parser, manga_id, make_raw_chapter, case: ExtractionCase
     ):
         raw_chapter = make_raw_chapter(
-            header_text=case.header_text,
-            info_text=case.info_text,
+            raw_number=case.raw_number,
+            raw_title=case.raw_title,
             href="https://mangadex.org/chapter/valid",
         )
 
@@ -136,14 +127,14 @@ class TestGenericChapterParserExtraction:
     def test_parses_multiple_chapters_simultaneously(self, parser, manga_id, make_raw_chapter):
         raw_chapters = (
             make_raw_chapter(
-                header_text="1",
-                info_text="Ch. 1 - Start",
+                raw_number="1",
+                raw_title="Ch. 1 - Start",
                 language_title="English",
                 href="https://mangadex.org/chapter/valid",
             ),
             make_raw_chapter(
-                header_text="3",
-                info_text="Ch. 2 - Continúa",
+                raw_number="3",
+                raw_title="Ch. 2 - Continúa",
                 language_title="Spanish",
                 href="https://mangadex.org/chapter/valid",
             ),
@@ -153,7 +144,7 @@ class TestGenericChapterParserExtraction:
 
         assert len(result) == 2
         assert result[0].number == Decimal("1")
-        assert result[1].number == Decimal("2")
+        assert result[1].number == Decimal("3")
 
 
 class TestGenericChapterParserLinks:

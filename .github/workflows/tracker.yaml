@@ -66,7 +66,7 @@ jobs:
           GITHUB_RUN_ID: ${{ github.run_id }}
           GIT_COMMIT: ${{ github.sha }}
         run: |
-          nix develop .#ci --command \
+          nix develop --command \
           uv run manga-tracker
 
       - name: Revoke IP from Supabase (Lock the Door)

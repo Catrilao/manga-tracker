@@ -27,8 +27,6 @@
             LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib ];
 
             shellHook = ''
-              export CHROMIUM_EXECUTABLE_PATH="${pkgs.chromium}/bin/chromium"
-              export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
               export UV_LINK_MODE=copy
             '';
           };
@@ -36,11 +34,6 @@
         devShells.default = mkEnv [
           pkgs.act
           pkgs.postgresql
-          pkgs.chromium
-        ];
-
-        devShells.ci = mkEnv [
-          pkgs.chromium
         ];
       });
 }

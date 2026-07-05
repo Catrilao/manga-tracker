@@ -1,12 +1,8 @@
-import os
 import sys
-from unittest.mock import AsyncMock, patch
 from uuid import UUID
 
 import psycopg
 import pytest
-import pytest_asyncio
-from playwright.async_api import async_playwright
 
 from src.main import main
 
@@ -15,19 +11,6 @@ from src.main import main
 def clear_module_cache(monkeypatch):
     monkeypatch.delitem(sys.modules, "src.config", raising=False)
     monkeypatch.setattr("src.main.configure_logging", lambda: None)
-
-
-@pytest_asyncio.fixture
-async def async_browser_context():
-    async with async_playwright() as p:
-        chromium_path = os.environ.get("CHROMIUM_EXECUTABLE_PATH")
-        browser = await p.chromium.launch(executable_path=chromium_path)
-        context = await browser.new_context()
-
-        yield context
-
-        await context.close()
-        await browser.close()
 
 
 class TestMainCompositionRootSmoke:
@@ -47,21 +30,10 @@ class TestMainCompositionRootSmoke:
 
         monkeypatch.setenv("DATABASE_URL", db_url)
         monkeypatch.setenv("DISCORD_WEBHOOK", "http://127.0.0.1:54321/mock-webhook")
-        monkeypatch.setenv("CHROMIUM_EXECUTABLE_PATH", "mock")
         monkeypatch.setenv("TRACKER_ENV", "test")
 
-        with patch("src.main.async_playwright") as mock_async_playwright:
-            mock_cm = AsyncMock()
-            mock_p = AsyncMock()
-            mock_cm.__aenter__.return_value = mock_p
-            mock_async_playwright.return_value = mock_cm
-
-            mock_browser = AsyncMock()
-            mock_p.chromium.launch.return_value = mock_browser
-            mock_browser.new_context.return_value = AsyncMock()
-
-            with pytest.raises(SystemExit) as exec_info:
-                main()
+        with pytest.raises(SystemExit) as exec_info:
+            main()
 
         captured = capsys.readouterr()
         output = captured.out + captured.err
@@ -77,7 +49,6 @@ class TestMainCompositionRootSmoke:
     def test_main_exits_with_error_on_configuration_failure(self, monkeypatch, capsys):
         monkeypatch.setenv("DATABASE_URL", "")
         monkeypatch.setenv("DISCORD_WEBHOOK", "")
-        monkeypatch.setenv("CHROMIUM_EXECUTABLE_PATH", "")
         monkeypatch.setenv("TRACKER_ENV", "invalid_path")
 
         with pytest.raises(SystemExit) as exec_info:
@@ -103,7 +74,6 @@ class TestMainCompositionRootSmoke:
             "postgresql://usuario_fantasma:password_falso@localhost:9999/db_inexistente",
         )
         monkeypatch.setenv("DISCORD_WEBHOOK", "http://127.0.0.1:54321/mock-webhook")
-        monkeypatch.setenv("CHROMIUM_EXECUTABLE_PATH", "/dev/null/non-existent-path")
         monkeypatch.setenv("TRACKER_ENV", "test")
 
         with pytest.raises(SystemExit) as exec_info:
@@ -145,7 +115,6 @@ class TestMainCompositionRootOperationalEdgeCases:
 
         monkeypatch.setenv("DATABASE_URL", db_url)
         monkeypatch.setenv("DISCORD_WEBHOOK", "http://127.0.0.1:54321/mock-webhook")
-        monkeypatch.setenv("CHROMIUM_EXECUTABLE_PATH", "mock")
         monkeypatch.setenv("TRACKER_ENV", "test")
 
         with pytest.raises(SystemExit) as exec_info:

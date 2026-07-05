@@ -13,7 +13,7 @@ class GenericParser:
     Fulfills the ChapterParserPort.
     Transforms raw, unvalidated strings from the JS evaluation into strict Domain Models.
 
-    Designed to work with different scanlation sources.
+    Designed to work with different scanlation sources (API or DOM scraping).
 
     CONTRACT: This function is an objective observer. It intentionally
     does NOT filter out chapters with missing links, missing languages,
@@ -21,6 +21,20 @@ class GenericParser:
     Validation and filtering are strictly the responsibility of the
     database sync layer.
     """
+
+    def _extract_number(self, text: str) -> Decimal | None:
+        if not text:
+            return None
+
+        match = re.search(r"(?:Ch\.?|chapter)\s*(\d+(?:\.\d+)?)", text, flags=re.IGNORECASE)
+
+        if not match:
+            match = re.search(r"(\d+(?:\.\d+)?)", text, flags=re.IGNORECASE)
+
+        if match:
+            return Decimal(match.group(1))
+
+        return None
 
     def __call__(
         self,
@@ -30,60 +44,52 @@ class GenericParser:
         logger.info("parsing_raw_chapters_started", target_manga_id=str(manga_id))
 
         parsed_chapters = []
-        for raw in raw_chapters:
+        for ch in raw_chapters:
             number = Decimal("-1.0")
-            name = raw.info_text.strip() if raw.info_text else "No name"
 
-            if raw.header_text:
-                num_match = re.search(
-                    r"(?:Ch\.?|chapter)\s*(\d+(?:\.\d+)?)",
-                    raw.header_text,
-                    re.IGNORECASE,
-                )
-                if num_match:
-                    number = Decimal(num_match.group(1))
+            extracted_number = self._extract_number(ch.raw_number)
 
-            if number == Decimal("-1.0"):
-                num_match = re.search(
-                    r"(?:Ch\.?|chapter)\s*(\d+(?:\.\d+)?)",
-                    raw.info_text,
-                    re.IGNORECASE,
-                )
-                if num_match:
-                    number = Decimal(num_match.group(1))
+            if extracted_number is None:
+                extracted_number = self._extract_number(ch.raw_title)
 
-            name_match = re.search(
-                r"(Ch\.|chapter)\s*\d+(?:\.\d+)?\s*-\s*(.+)",
-                raw.info_text,
-                re.IGNORECASE,
-            )
-            if name_match:
-                name = name_match.group(2).strip()
-
-            if number == Decimal("-1.0"):
+            if extracted_number is not None:
+                number = extracted_number
+            else:
                 logger.warning(
                     "chapter_number_parse_failed",
                     manga_id=str(manga_id),
-                    raw_header=raw.header_text,
-                    raw_info=raw.info_text,
+                    raw_title=ch.raw_title,
+                    raw_number=ch.raw_number,
                 )
 
-            logger.debug(
-                "chapter_parsed",
-                manga_id=str(manga_id),
-                number=str(number),
-                name=name,
-                link=raw.href,
-                language=raw.language_title,
-            )
+            name = "No name"
+            if ch.raw_title:
+                clean_name = re.sub(
+                    r"^(?:Ch\.|chapter)\s*\d+(?:\.\d+)?\s*-\s*",
+                    "",
+                    ch.raw_title,
+                    flags=re.IGNORECASE,
+                )
+                name = clean_name.strip() or "No name"
 
             try:
+                language = ch.language_title.strip().lower()
+
+                logger.debug(
+                    "chapter_parsed",
+                    manga_id=str(manga_id),
+                    number=str(number),
+                    name=name,
+                    link=ch.href,
+                    language=language,
+                )
+
                 chapter = Chapter(
                     manga_id=manga_id,
                     number=number,
                     name=name,
-                    link=raw.href,
-                    language=raw.language_title,
+                    link=ch.href,
+                    language=language,
                 )
                 parsed_chapters.append(chapter)
             except Exception as e:

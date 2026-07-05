@@ -2,20 +2,13 @@ import asyncio
 import re
 from collections.abc import Awaitable, Callable
 from functools import wraps
-from pathlib import Path
 from typing import Any, TypeVar, cast
-from urllib.parse import urljoin
 from uuid import UUID
 
-from playwright.async_api import BrowserContext, Route
-from playwright.async_api import (
-    Error as PlaywrightError,
-)
-from playwright.async_api import TimeoutError as PlaywrightTimeoutError
+import httpx
 
 from src.core.ports import FetchMangaPort
 from src.domain.models import (
-    DOMChangeError,
     Manga,
     NetworkError,
     ParseError,
@@ -24,14 +17,6 @@ from src.domain.models import (
 )
 from src.infrastructure.scrapers.factory import register_scraper
 from src.logger import get_logger
-
-PAGE_LOAD_TIMEOUT_MS = 20000
-CHAPTER_LOAD_TIMEOUT_MS = 15000
-
-_CURRENT_DIR = Path(__file__).parent
-CHAPTER_EXTRACTOR_SCRIPT = (_CURRENT_DIR / "extract_chapters.js").read_text(encoding="utf-8")
-MANGA_EXTRACTOR_SCRIPT = (_CURRENT_DIR / "extract_manga.js").read_text(encoding="utf-8")
-
 
 logger = get_logger(__name__)
 
@@ -50,7 +35,14 @@ def async_retry(retries: int = 3, delay: float = 2.0) -> Callable[[F], F]:
                         logger.error(f"Failed operation after {retries} retries", error=str(e))
                         raise
 
-                    wait_time = delay * attempt
+                    retry_after = getattr(e, "retry_after", None)
+                    try:
+                        wait_time = (
+                            float(retry_after) if retry_after is not None else (delay * attempt)
+                        )
+                    except (TypeError, ValueError):
+                        wait_time = delay * attempt
+
                     logger.warning(
                         f"Network failure in attempt {attempt}/{retries}. Retrying in {wait_time}s",
                         error=str(e),
@@ -64,136 +56,143 @@ def async_retry(retries: int = 3, delay: float = 2.0) -> Callable[[F], F]:
     return decorator
 
 
-async def _intercept_route(route: Route) -> None:
-    if route.request.resource_type in {"image", "media", "font", "stylesheet"}:
-        await route.abort()
-    else:
-        await route.fallback()
-
-
 @register_scraper("mangadex")
 class MangadexScraper(FetchMangaPort):
-    def __init__(self, context: BrowserContext, **kwargs: Any) -> None:
-        del kwargs
-        self.context = context
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__()
 
     @property
     def provider_name(self) -> str:
         return "mangadex"
 
-    @async_retry(retries=3, delay=2)
-    async def fetch_metadata(self, target_url: str) -> Manga:
+    def _extract_uuid(self, target_url: str) -> UUID:
         uuid_match = re.search(r"/title/([0-9a-fA-F-]{36})", target_url)
         if not uuid_match:
             raise ParseError(f"Could not extract Manga UUID from URL: {target_url}")
+        return UUID(uuid_match.group(1))
 
-        manga_id = UUID(uuid_match.group(1))
-
-        logger.info("scraper_navigation_started", url=target_url, target_manga_id=str(manga_id))
-
-        page = await self.context.new_page()
+    async def _http_get(
+        self, client: httpx.AsyncClient, url: str, params: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         try:
-            await page.route("**/*", _intercept_route)
+            response = await client.get(url, params=params, timeout=15)
 
-            try:
-                response = await page.goto(target_url, wait_until="domcontentloaded")
-
-                if response is not None and not response.ok:
-                    raise NetworkError(
-                        f"HTTP status {response.status} reaching {target_url}",
-                        status_code=response.status,
-                    )
-
-            except PlaywrightTimeoutError as e:
-                raise NetworkError(
-                    f"Network timeout reaching: {target_url}",
-                    status_code=408,
-                ) from e
-            except PlaywrightError as e:
-                raise NetworkError(
-                    f"Network failure (DNS/Connection): {str(e)}",
-                    status_code=0,
-                ) from e
-
-            try:
-                await page.wait_for_selector(
-                    "div.layout-container.manga",
-                    timeout=PAGE_LOAD_TIMEOUT_MS,
+            if not response.is_success:
+                error = NetworkError(
+                    f"HTTP status {response.status_code} reaching {url}",
+                    status_code=response.status_code,
                 )
-            except PlaywrightTimeoutError as e:
-                raise DOMChangeError("Manga container CSS missing. Possible DOM change") from e
-            except PlaywrightError as e:
-                raise DOMChangeError(f"Playwright DOM interaction failed: {e}") from e
+                if response.status_code == 429:
+                    error.retry_after = response.headers.get("Retry-After", 5)
+                raise error
 
-            manga_data = await page.evaluate(MANGA_EXTRACTOR_SCRIPT)
-            manga_name = manga_data["name"]
-            thumbnail = manga_data["thumbnail"]
+            return cast(dict[str, Any], response.json())
+        except httpx.TimeoutException as e:
+            raise NetworkError(f"Network timeout reaching {url}", status_code=408) from e
+        except httpx.RequestError as e:
+            raise NetworkError(f"Network failure: {str(e)}", status_code=0) from e
+        except ValueError as e:
+            raise ParseError(f"Invalid JSON response from API: {str(e)}") from e
 
-            if not manga_name or not thumbnail:
-                raise ParseError("Could not get manga data")
+    @async_retry(retries=3, delay=2)
+    async def fetch_metadata(self, target_url: str) -> Manga:
+        manga_id = self._extract_uuid(target_url)
+        logger.info("scraper_api_navigation_started", url=target_url, target_manga_id=str(manga_id))
 
-            if thumbnail and not thumbnail.startswith("https"):
-                thumbnail = urljoin(target_url, thumbnail)
+        api_url = f"https://api.mangadex.org/manga/{manga_id}"
+
+        async with httpx.AsyncClient() as client:
+            data = await self._http_get(client, api_url, params={"includes[]": "cover_art"})
+
+            try:
+                attributes = data["data"]["attributes"]
+
+                title_dict = attributes.get("title", {})
+                manga_name = next(iter(title_dict.values()), "Unknown") if title_dict else "Unknown"
+
+                thumbnail = ""
+                for rel in data["data"].get("relationships", []):
+                    if rel.get("type") == "cover_art":
+                        file_name = rel.get("attributes", {}).get("fileName")
+                        if file_name:
+                            thumbnail = (
+                                f"https://uploads.mangadex.org/covers/{manga_id}/{file_name}"
+                            )
+                            break
+
+                if not thumbnail:
+                    logger.warning("scraper_manga_no_thumbnail", manga_id=str(manga_id))
+
+            except (KeyError, TypeError) as e:
+                raise ParseError(f"Unexpected API response structure missing key: {e}") from e
+
             current_source = Source(provider_name=self.provider_name, target_url=target_url)
-
             manga = Manga(manga_id, manga_name, thumbnail, sources=(current_source,))
 
             logger.info(
-                "scraper_manga_data_extracted",
-                manga_id=str(manga_id),
-                manga_name=manga_name,
+                "scraper_manga_data_extracted", manga_name=manga_name, manga_id=str(manga_id)
             )
 
             return manga
-        finally:
-            await page.close()
 
     @async_retry(retries=3, delay=2)
     async def fetch_chapters(self, target_url: str) -> list[RawChapter]:
-        page = await self.context.new_page()
-        try:
-            await page.route("**/*", _intercept_route)
-            try:
-                response = await page.goto(target_url, wait_until="domcontentloaded")
+        manga_id = self._extract_uuid(target_url)
+        api_url = f"https://api.mangadex.org/manga/{manga_id}/feed"
 
-                if response is not None and not response.ok:
-                    raise NetworkError(
-                        f"HTTP status {response.status} reaching {target_url}",
-                        status_code=response.status,
-                    )
+        raw_chapters_data = []
+        limit = 500
+        offset = 0
+        total = 1
 
-            except PlaywrightTimeoutError as e:
-                raise NetworkError(
-                    f"Network timeout reaching: {target_url}",
-                    status_code=408,
-                ) from e
-            except PlaywrightError as e:
-                raise NetworkError(
-                    f"Network failure (DNS/Connection): {str(e)}",
-                    status_code=0,
-                ) from e
+        async with httpx.AsyncClient() as client:
+            while offset < total:
+                params = {
+                    "limit": limit,
+                    "offset": offset,
+                }
 
-            try:
-                await page.wait_for_selector(
-                    ".chapter-header", state="attached", timeout=CHAPTER_LOAD_TIMEOUT_MS
-                )
+                data = await self._http_get(client, api_url, params)
 
-                chapters_list = await page.evaluate(CHAPTER_EXTRACTOR_SCRIPT)
+                total = data.get("total", 0)
+                items = data.get("data", [])
 
-                raw_chapters_data = []
-                for chapter_dict in chapters_list:
-                    href = chapter_dict.get("href", "")
-                    if href and not href.startswith("https"):
-                        chapter_dict["href"] = urljoin(target_url, href)
+                if not items and offset == 0:
+                    logger.warning("scraper_zero_chapters_found", url=target_url)
+                    break
 
-                    raw_chapters_data.append(RawChapter(**chapter_dict))
+                for item in items:
+                    try:
+                        chapter_id = item["id"]
+                        attributes = item["attributes"]
 
-                logger.debug("scraper_raw_chapters_extracted", count=len(raw_chapters_data))
-            except PlaywrightTimeoutError as e:
-                raise DOMChangeError(
-                    "Scraper returned zero chapters. Posible DOM change or extreme lag"
-                ) from e
+                        number = attributes["chapter"] or ""
+                        name = attributes["title"] or ""
+                        language = attributes["translatedLanguage"] or ""
+                        link = (
+                            attributes["externalUrl"]
+                            or f"https://mangadex.org/chapter/{chapter_id}"
+                        )
 
+                        raw_chapters_data.append(
+                            RawChapter(
+                                raw_title=str(name),
+                                raw_number=str(number),
+                                href=link,
+                                language_title=str(language),
+                            )
+                        )
+
+                    except KeyError as e:
+                        logger.warning(
+                            "scraper_chapter_parse_error", chapter_id=item.get("id"), error=str(e)
+                        )
+                        continue
+
+                offset += limit
+
+                if offset < total:
+                    await asyncio.sleep(0.2)
+
+            logger.debug("scraper_raw_chapters_extracted", count=len(raw_chapters_data))
             return raw_chapters_data
-        finally:
-            await page.close()

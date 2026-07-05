@@ -57,7 +57,7 @@ class MangaSyncScenario:
 
     def scraper_returns_chapters(self, *chapter_numbers: str) -> Self:
         for num in chapter_numbers:
-            self.scraped_chapters.append(self.make_raw_chapter(header_text=f"Chapter {num}"))
+            self.scraped_chapters.append(self.make_raw_chapter(raw_title=f"Chapter {num}"))
             self.parsed_chapters.append(
                 self.make_chapter(manga_id=self.target_manga.uuid, number=Decimal(num))
             )

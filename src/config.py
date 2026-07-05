@@ -13,7 +13,6 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 class AppConfig:
     database_url: str
     discord_webhook: str
-    chromium_executable_path: str | None
 
 
 def load_config() -> AppConfig:
@@ -36,12 +35,9 @@ def load_config() -> AppConfig:
         missing_vars = ", ".join(errors)
         raise ConfigurationError(f"Missing required environmental variable(s): [{missing_vars}]")
 
-    opt_chromium_path = os.getenv("CHROMIUM_EXECUTABLE_PATH")
-
     return AppConfig(
         database_url=values["DATABASE_URL"],
         discord_webhook=values["DISCORD_WEBHOOK"],
-        chromium_executable_path=opt_chromium_path.strip() if opt_chromium_path else None,
     )
 
 

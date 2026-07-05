@@ -1,4 +1,3 @@
-import os
 from collections.abc import Generator
 from pathlib import Path
 
@@ -45,14 +44,3 @@ def db_connection(
 
     with get_db_connection(db_url) as conn:
         yield conn
-
-
-@pytest.fixture(scope="session")
-def browser_type_launch_args(browser_type_launch_args):
-    args = {**browser_type_launch_args}
-
-    chromium_path = os.environ.get("CHROMIUM_EXECUTABLE_PATH")
-    if chromium_path:
-        args["executable_path"] = chromium_path
-
-    return args

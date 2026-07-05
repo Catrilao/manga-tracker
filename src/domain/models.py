@@ -38,8 +38,8 @@ class ControlSignal(Enum):
 
 @dataclass(frozen=True)
 class RawChapter:
-    info_text: str
-    header_text: str
+    raw_number: str
+    raw_title: str
     href: str
     language_title: str
 
@@ -237,6 +237,12 @@ class ParseError(ScraperBaseException):
 class NetworkError(ScraperBaseException):
     audit_status = AuditStatus.TIMEOUT
 
-    def __init__(self, message: str = "Network error", status_code: int | None = None) -> None:
+    def __init__(
+        self,
+        message: str = "Network error",
+        status_code: int | None = None,
+        retry_after: float | None = None,
+    ) -> None:
         super().__init__(message)
         self.status_code = status_code
+        self.retry_after = retry_after

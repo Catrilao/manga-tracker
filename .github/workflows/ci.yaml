@@ -63,11 +63,11 @@ jobs:
 
       - name: Lint
         run: |
-          nix develop .#ci --command \
+          nix develop --command \
           uv run pre-commit run --all-files
 
       - name: Test
         if: "!cancelled()"
         run: |
-          nix develop .#ci --command \
+          nix develop --command \
           uv run pytest -n logical

@@ -9,8 +9,6 @@ from tests.doubles.notifier import MockNotifier
 from tests.scenarios.plan_scenario import SyncPlanScenario
 from tests.scenarios.sync_scenario import MangaSyncScenario
 
-pytest_plugins = ["pytest_playwright"]
-
 
 @pytest.fixture
 def mock_notifier() -> MockNotifier:
@@ -73,8 +71,8 @@ def make_raw_chapter() -> Callable[..., RawChapter]:
 
     def _make(**kwargs) -> RawChapter:
         defaults = {
-            "info_text": "Eye Care",
-            "header_text": "Chapter 57",
+            "raw_title": "Eye Care",
+            "raw_number": "Chapter 57",
             "href": "/chapter/ba5ec0e2-70bc-4359-9584-9913c2b99470",
             "language_title": "English",
         }

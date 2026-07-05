@@ -1,11 +1,10 @@
 # MangaDex Tracker
 
-An automated scraper that monitors MangaDex for new chapter releases of tracked mangas and sends notifications via Discord. Built with Python, Playwright, and PostgreSQL.
+An automated scraper that monitors MangaDex for new chapter releases of tracked mangas and sends notifications via Discord. Built with Python and PostgreSQL.
 
 ## Features
 
 - **Hexagonal Architecture**: Clear separation of domain logic, use cases, and infrastructure.
-- **Headless Scraping**: Uses Playwright with DOM wait states, dynamic network interception, and robust timeout handling.
 - **Reproducible Environments**: Dependency management via `uv` and declarative environments via Nix flakes.
 - **Zero-Trust CI/CD**: Ready for GitHub Actions with dynamic database firewall whitelisting (e.g., Supabase network restrictions).
 
@@ -31,15 +30,6 @@ An automated scraper that monitors MangaDex for new chapter releases of tracked 
 uv sync
 
 ```
-
-3. **Install Playwright Browsers**:
-
-```bash
-uv run playwright install chromium
-
-```
-
-_(Note: If using `nix develop .#ci`, the browser binary is handled automatically by Nix)._
 
 ## Usage
 

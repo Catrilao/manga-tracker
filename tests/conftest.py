@@ -9,8 +9,6 @@ from tests.doubles.notifier import MockNotifier
 from tests.scenarios.plan_scenario import SyncPlanScenario
 from tests.scenarios.sync_scenario import MangaSyncScenario
 
-pytest_plugins = ["pytest_playwright"]
-
 
 @pytest.fixture
 def mock_notifier() -> MockNotifier:

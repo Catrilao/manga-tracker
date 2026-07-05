@@ -136,8 +136,8 @@ FAILURE_SCRAPER_SYNC_SCENARIOS = [
     ),
     pytest.param(
         SyncErrorCase(
-            simulated_error=NetworkError("Timeout from Playwright"),
-            expected_message="Timeout from Playwright",
+            simulated_error=NetworkError("Timeout"),
+            expected_message="Timeout",
             expected_color=Severity.ERROR.value,
             expected_event="manga_sync_failed",
             expected_level="error",

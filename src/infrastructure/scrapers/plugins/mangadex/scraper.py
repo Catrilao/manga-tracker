@@ -36,7 +36,12 @@ def async_retry(retries: int = 3, delay: float = 2.0) -> Callable[[F], F]:
                         raise
 
                     retry_after = getattr(e, "retry_after", None)
-                    wait_time = float(retry_after) if retry_after else (delay * attempt)
+                    try:
+                        wait_time = (
+                            float(retry_after) if retry_after is not None else (delay * attempt)
+                        )
+                    except (TypeError, ValueError):
+                        wait_time = delay * attempt
 
                     logger.warning(
                         f"Network failure in attempt {attempt}/{retries}. Retrying in {wait_time}s",
@@ -118,7 +123,7 @@ class MangadexScraper(FetchMangaPort):
                 if not thumbnail:
                     logger.warning("scraper_manga_no_thumbnail", manga_id=str(manga_id))
 
-            except KeyError as e:
+            except (KeyError, TypeError) as e:
                 raise ParseError(f"Unexpected API response structure missing key: {e}") from e
 
             current_source = Source(provider_name=self.provider_name, target_url=target_url)

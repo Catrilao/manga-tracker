@@ -108,7 +108,7 @@ class TestMangadexScraperHappyPath:
         assert raw_chapters[0].href == "https://mangadex.org/chapter/uuid-chapter-1"
         assert raw_chapters[1].href == "https://mangaplus.shueisha.co.jp/viewer/123"
 
-    async def test_scraper_handles_missings_art_cover_gracefully(self, url_context: UrlContext):
+    async def test_scraper_handles_missing_art_cover_gracefully(self, url_context: UrlContext):
         scraper = MangadexScraper()
 
         json_without_cover = {
@@ -306,6 +306,33 @@ class TestMangadexScraperErrors:
                 await fetch_method(scraper, url_context.target)
 
         mock_sleep.assert_any_call(15)
+
+        assert f"HTTP status 429 reaching {api_url}" in str(exec_info.value)
+        assert exec_info.value.status_code == 429
+
+    @pytest.mark.parametrize(
+        "fetch_method,mock_api",
+        [
+            (MangadexScraper.fetch_metadata, mock_metadata),
+            (MangadexScraper.fetch_chapters, mock_chapters),
+        ],
+    )
+    async def test_scraper_handles_malformed_retry_after_header(
+        self, url_context: UrlContext, fetch_method, mock_api
+    ):
+        scraper = MangadexScraper()
+
+        with patch("asyncio.sleep") as mock_sleep, respx.mock as mock_respx:
+            api_url = mock_api(
+                mock_respx,
+                url_context.uuid,
+                return_value=httpx.Response(status_code=429, headers={"Retry-After": "Valor Malo"}),
+            )
+
+            with pytest.raises(NetworkError) as exec_info:
+                await fetch_method(scraper, url_context.target)
+
+        mock_sleep.assert_any_call(2.0)
 
         assert f"HTTP status 429 reaching {api_url}" in str(exec_info.value)
         assert exec_info.value.status_code == 429

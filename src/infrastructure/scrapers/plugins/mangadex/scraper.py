@@ -101,7 +101,8 @@ class MangadexScraper(FetchMangaPort):
 
         api_url = f"https://api.mangadex.org/manga/{manga_id}"
 
-        async with httpx.AsyncClient() as client:
+        headers = {"User-Agent": "MangaTracker/1.0 (GitHub Actions Bot)"}
+        async with httpx.AsyncClient(headers=headers) as client:
             data = await self._http_get(client, api_url, params={"includes[]": "cover_art"})
 
             try:
@@ -145,7 +146,8 @@ class MangadexScraper(FetchMangaPort):
         offset = 0
         total = 1
 
-        async with httpx.AsyncClient() as client:
+        headers = {"User-Agent": "MangaTracker/1.0 (GitHub Actions Bot)"}
+        async with httpx.AsyncClient(headers=headers) as client:
             while offset < total:
                 params = {
                     "limit": limit,

@@ -44,6 +44,10 @@ class MangaSyncService:
             raw_chapters: list[RawChapter] = []
             source_errors = []
 
+            if not manga.sources:
+                log.warning("manga_sources_not_found", manga_id=manga.uuid, manga_name=manga.name)
+                return False
+
             for source in manga.sources:
                 if not source.is_active:
                     continue

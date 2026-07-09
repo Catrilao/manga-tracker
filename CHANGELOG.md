@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1](https://github.com/Catrilao/manga-tracker/compare/v1.3.0...v1.3.1) (2026-07-09)
+
+
+### Documentation
+
+* enhance README with badges and setup instructions, add MIT license ([90e9faa](https://github.com/Catrilao/manga-tracker/commit/90e9faa49ba8768823e7be973db2f9856287e053))
+* **readme:** document pre-commit and data quality gatekeeper ([d3d194d](https://github.com/Catrilao/manga-tracker/commit/d3d194d26a9d51e9ccd9a6c5137661c7c8e99f3c))
+
 ## [1.3.0](https://github.com/Catrilao/manga-tracker/compare/v1.2.0...v1.3.0) (2026-07-09)
 
 

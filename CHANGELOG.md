@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0](https://github.com/Catrilao/manga-tracker/compare/v1.2.0...v1.3.0) (2026-07-09)
+
+
+### Features
+
+* **observability:** implement active telemetry, http status tracking ([fb77957](https://github.com/Catrilao/manga-tracker/commit/fb77957296b5943a1d210e274d3f21998b70ff8a))
+
+
+### Bug Fixes
+
+* **core:** safely extract status code from domain exceptions ([35a8938](https://github.com/Catrilao/manga-tracker/commit/35a8938fce33c13fb7ad7ce8176247a1718ba9e2))
+* **core:** skip mangas without sources ([acc5adf](https://github.com/Catrilao/manga-tracker/commit/acc5adf794cd6a69d76c3c910baa08a10d2287b4))
+* **scraper:** add a User-Agent header to the MangaDex requests ([dbfb540](https://github.com/Catrilao/manga-tracker/commit/dbfb540eb92db54980108417571472126ad18784))
+
 ## [1.2.0](https://github.com/Catrilao/manga-tracker/compare/v1.1.0...v1.2.0) (2026-06-29)
 
 

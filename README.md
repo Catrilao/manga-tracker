@@ -7,6 +7,7 @@ An automated scraper that monitors MangaDex for new chapter releases of tracked 
 - **Hexagonal Architecture**: Clear separation of domain logic, use cases, and infrastructure.
 - **Reproducible Environments**: Dependency management via `uv` and declarative environments via Nix flakes.
 - **Zero-Trust CI/CD**: Ready for GitHub Actions with dynamic database firewall whitelisting (e.g., Supabase network restrictions).
+- **Data Quality Gatekeeper**: Built-in anomaly detection to prevent syncing when the API behaves unexpectedly or regional geo-blocks occur.
 
 ## Requirements
 
@@ -29,6 +30,16 @@ An automated scraper that monitors MangaDex for new chapter releases of tracked 
 ```bash
 uv sync
 
+```
+
+## Usage
+
+This project uses `pre-commit` to enforce code quality, type checking (`mypy`), and consistent formatting (`ruff`).
+
+Before starting to push code, install the pre-commit hooks:
+
+```
+uv run pre-commit install
 ```
 
 ## Usage

@@ -1,5 +1,9 @@
 # MangaDex Tracker
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-red.svg)](LICENSE)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-gren.svg)](https://www.python.org/)
+[![CI](https://github.com/Catrilao/manga-tracker/actions/workflows/ci.yaml/badge.svg)](https://github.com/Catrilao/manga-tracker/actions/workflows/ci.yaml)
+
 An automated scraper that monitors MangaDex for new chapter releases of tracked mangas and sends notifications via Discord. Built with Python and PostgreSQL.
 
 ## Features
@@ -21,7 +25,12 @@ An automated scraper that monitors MangaDex for new chapter releases of tracked 
 1. **Clone the repository**:
 
    ```bash
+   # Using HTTPS
    git clone https://github.com/Catrilao/manga-tracker.git
+
+   # Or using SSH
+   git clone git@github.com:Catrilao/manga-tracker.git
+
    cd manga-tracker
    ```
 
@@ -32,7 +41,7 @@ uv sync
 
 ```
 
-## Usage
+## Development
 
 This project uses `pre-commit` to enforce code quality, type checking (`mypy`), and consistent formatting (`ruff`).
 

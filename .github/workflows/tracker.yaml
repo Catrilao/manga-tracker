@@ -25,19 +25,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
 
-      - name: Install Nix
-        uses: determinatesystems/nix-installer-action@v22
-
-      - name: Magic Nix Cache
-        uses: determinatesystems/magic-nix-cache-action@v14
-
-      - name: Cache uv
-        uses: actions/cache@v6
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8.3.2
         with:
-          path: ~/.cache/uv
-          key: ${{ github.os }}-uv-${{ hashFiles('uv.lock') }}
-          restore-keys: |
-            ${{ github.os }}-uv-
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Set up Python
+        uses: actions/setup-python@v6.3.0
+        with:
+          python-version-file: ".python-version"
 
       - name: Get GitHub Runner IP
         id: ip
@@ -66,7 +63,6 @@ jobs:
           GITHUB_RUN_ID: ${{ github.run_id }}
           GIT_COMMIT: ${{ github.sha }}
         run: |
-          nix develop --command \
           uv run manga-tracker
 
       - name: Revoke IP from Supabase (Lock the Door)

@@ -5,9 +5,9 @@ from types import MappingProxyType
 from src.domain.models import (
     Chapter,
     ChapterIdentifier,
+    DataAnomalyError,
     DatabaseError,
     DBMetadata,
-    DOMChangeError,
     LogEvent,
     LogLevel,
     ParseError,
@@ -30,10 +30,12 @@ def calculate_sync_plan(
 
     if not db_state.is_cold_start:
         if db_state.max_chapter_number is None:
-            raise DatabaseError("'max_number_db' is None but not cold start")  # Line 33
+            raise DatabaseError("'max_number_db' is None but not cold start")
 
         if scraped_chapters and len(scraped_chapters) < db_state.chapter_count * 0.5:
-            raise DOMChangeError("Found less than 50% of chapters than before")
+            raise DataAnomalyError(
+                "Found less than 50% of chapters than before. Possible API pagination issue"
+            )
 
     null_count_scraper = 0
     warnings_to_log: list[LogEvent] = []
@@ -87,7 +89,9 @@ def calculate_sync_plan(
         valid_chapters.append(chapter)
 
     if not scraped_chapters:
-        raise DOMChangeError("Scraper returned zero chapters. Possible DOM change")  # Line 90
+        raise DataAnomalyError(
+            "Scraper returned zero chapters. Possible API change or regional block"
+        )
     null_ratio = null_count_scraper / len(scraped_chapters)
     if null_ratio >= 0.3:
         raise ParseError(f"High volume (>=30%) of null chapters ({null_count_scraper} chapters)")

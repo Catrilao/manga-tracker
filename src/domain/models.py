@@ -246,3 +246,8 @@ class NetworkError(ScraperBaseException):
         super().__init__(message)
         self.status_code = status_code
         self.retry_after = retry_after
+
+
+class DataAnomalyError(ScraperBaseException):
+    def __init__(self, message: str) -> None:
+        super().__init__(message)

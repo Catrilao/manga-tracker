@@ -22,8 +22,8 @@ class FetchMangaPort(Protocol):
 
     Raises:
         NetworkError: If the target URL cannot be reached
-        DOMChangeError: If the expected selectors are missing from the page
-        ParseError: If there is data missing
+        DataAnomalyError: If the retrieved data is inconsistent with the expected format
+        ParseError: If the retrieved data violates business heuristics
     """
 
     @property

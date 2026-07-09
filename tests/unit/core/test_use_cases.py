@@ -1,4 +1,4 @@
-from src.domain.models import DatabaseError, DOMChangeError, ParseError
+from src.domain.models import DataAnomalyError, DatabaseError, ParseError
 from tests.scenarios.plan_scenario import SyncPlanScenario
 
 
@@ -8,7 +8,7 @@ class TestsSyncPlanGuards:
             plan_scenario.with_active_series(chapter_count=100, max_chapter_number="100")
             .scraper_finds_chapters(*[str(i) for i in range(49)])
             .calculate()
-            .assert_error_raised(DOMChangeError, "less than 50% of chapters")
+            .assert_error_raised(DataAnomalyError, "less than 50% of chapters")
         )
 
     def test_high_null_ratio_raises_parse_error(self, plan_scenario):
@@ -85,5 +85,5 @@ class TestSyncPlanBusinessRules:
         scenario = SyncPlanScenario(make_chapter, make_db_metadata)
 
         scenario.calculate().assert_error_raised(
-            DOMChangeError, "Scraper returned zero chapters. Possible DOM change"
+            DataAnomalyError, "Scraper returned zero chapters. Possible API change"
         )

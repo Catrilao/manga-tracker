@@ -4,8 +4,8 @@ import pytest
 
 from src.domain.models import (
     AuditStatus,
+    DataAnomalyError,
     DatabaseError,
-    DOMChangeError,
     NetworkError,
     ParseError,
     Severity,
@@ -125,8 +125,8 @@ class SyncErrorCase:
 FAILURE_SCRAPER_SYNC_SCENARIOS = [
     pytest.param(
         SyncErrorCase(
-            simulated_error=DOMChangeError("CSS selector '.chapter' missing"),
-            expected_message="CSS selector '.chapter' missing",
+            simulated_error=DataAnomalyError("Found less than 50% of chapters than before"),
+            expected_message="Found less than 50% of chapters than before",
             expected_color=Severity.ERROR.value,
             expected_event="manga_sync_failed",
             expected_level="error",
@@ -244,7 +244,7 @@ async def test_service_skips_inactive_sources(
     await scenario.source_is_inactive().execute()
 
     scenario.assert_success(False)
-    scenario.assert_audit_saved(expected_status="failed", expected_error_class="DOMChangeError")
+    scenario.assert_audit_saved(expected_status="failed", expected_error_class="DataAnomalyError")
 
 
 @pytest.mark.asyncio
